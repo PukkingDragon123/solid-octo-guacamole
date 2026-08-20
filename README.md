@@ -7,6 +7,8 @@ grow the right berries and flowers, and build every wild animal the home it asks
 No build step, no dependencies — it is plain HTML, CSS and ES modules, and every
 sprite is drawn with the Canvas 2D API.
 
+![DAM IT — the valley on day 14, with the river dammed and a pond behind it](screenshot.png)
+
 ## Play it
 
 Because the game uses ES modules, it needs to be served over HTTP (opening
