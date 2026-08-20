@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DAM IT — a beaver building game</title>
+<meta name="description" content="DAM IT: hire a crew of beavers, fell and replant the forest, dam the river and build habitats for the animals of the valley." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦫</text></svg>" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="brand"><span class="logo">🦫</span><span>DAM<em>IT</em></span></div>
+    <div id="resbar" class="resbar"></div>
+    <div id="daybar" class="daybar"></div>
+    <div id="controls" class="controls"></div>
+  </header>
+
+  <main>
+    <section id="stage">
+      <canvas id="game" aria-label="The valley"></canvas>
+      <div id="toasts"></div>
+      <div id="tipbar"></div>
+    </section>
+
+    <aside id="side">
+      <nav id="tabs"></nav>
+      <div id="panel"></div>
+    </aside>
+  </main>
+</div>
+
+<div id="modal" class="hidden">
+  <div class="sheet">
+    <button id="modalClose" class="sheetClose" aria-label="Close">✕</button>
+
+    <div id="modalHelp" class="hidden">
+      <h2>🦫 DAM IT</h2>
+      <p class="lede">You are the valley's beaver contractor. Wild animals keep turning up
+      with a wish-list; your job is to build them a home before they give up and move on.</p>
+      <ol class="howto">
+        <li><b>Hire a crew.</b> Loggers fell, Haulers carry, Engineers build, Gardeners plant
+        and Foragers pick. Every beaver is paid in <b>berries at dawn</b> — miss payday and
+        morale drops until they walk out.</li>
+        <li><b>Gather wood.</b> Click any grown tree to mark it for felling. The forest is
+        finite: plant saplings from the Build tab or you will run out for good.</li>
+        <li><b>Dam the river.</b> Place dam segments on the channel. When <i>every</i> water
+        tile across the river is sealed, the water rises and floods a pond behind it.</li>
+        <li><b>Plant what they ask for.</b> Berries, flowers and reeds all grow in different
+        places — reeds only take in still pond water.</li>
+        <li><b>Build the habitat</b> inside the animal's dashed circle, tick off every need,
+        and your new neighbour moves in.</li>
+      </ol>
+      <p class="keys"><b>Controls</b> — left-click: mark a tree / place / select a beaver ·
+      drag while placing to lay a row of dam · right-click: cancel or demolish ·
+      <kbd>Space</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed · <kbd>Esc</kbd> cancel</p>
+      <button id="newGameBtn" class="big">Let's build! 🪵</button>
+    </div>
+
+    <div id="modalMini" class="hidden">
+      <h2>🪵 Log Slam</h2>
+      <p class="lede">Slap the log dead centre three times. A good run packs every
+      building site and earns spare timber.</p>
+      <canvas id="miniCanvas"></canvas>
+      <button id="miniSlam" class="big">SLAM! (Space)</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
