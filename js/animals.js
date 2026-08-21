@@ -65,7 +65,7 @@ export function spawnRequest(force = false) {
   G.animalPool.shift();
   const request = { animalId: id, x: spot.x, y: spot.y, radius: def.radius, t: 0 };
   G.requests.push(request);
-  toast(`${def.icon} A ${def.name} is looking for a home! "${def.intro}"`, 'quest');
+  toast(`New contract: a ${def.name} wants a home.`, 'quest');
   return request;
 }
 
@@ -120,13 +120,13 @@ function houseAnimal(request) {
   if (r.skill && G.beavers.length) {
     const lucky = G.beavers.reduce((a, b) => (b.level < a.level ? b : a));
     lucky.sp += r.skill;
-    toast(`⭐ ${lucky.name} learned something from the ${def.name} — +${r.skill} skill point.`, 'good');
+    toast(`${lucky.name} earned a skill point from the ${def.name}.`, 'good');
   }
-  toast(`${def.icon} The ${def.name} moved in! +${r.hearts} ❤️  +${r.berries} 🫐  +${r.seeds} 🌰`, 'good');
+  toast(`The ${def.name} moved in! +${r.hearts} hearts, +${r.berries} berries, +${r.seeds} seeds`, 'good');
 
   if (G.housed.length === ANIMALS.length) {
     G.won = true;
-    toast('🏆 Every animal in the valley has a home. DAM IT — you did it!', 'good');
+    toast('Every animal has a home. DAM IT - you did it!', 'good');
   }
 }
 

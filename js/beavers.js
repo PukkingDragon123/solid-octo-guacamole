@@ -54,13 +54,13 @@ export function makeBeaver(role, tx, ty) {
 }
 
 export function hire(role) {
-  if (G.beavers.length >= G.crewCap) { toast('🏚️ No room on the payroll — build another Crew Lodge.', 'warn'); return false; }
+  if (G.beavers.length >= G.crewCap) { toast('No bunks left - build another Crew Lodge.', 'warn'); return false; }
   const cost = hireCost(role);
   if (!canAfford(cost)) { toast(`Not enough berries to hire a ${CREW_JOBS[role].name}.`, 'warn'); return false; }
   spend(cost);
   const b = makeBeaver(role, G.lodge.x, G.lodge.y);
   G.beavers.push(b);
-  toast(`${CREW_JOBS[role].icon} ${b.name} the ${CREW_JOBS[role].name} joined the crew!`, 'good');
+  toast(`${b.name} the ${CREW_JOBS[role].name} joined the crew!`, 'good');
   return true;
 }
 
@@ -86,7 +86,7 @@ function grantXp(b, amount) {
     b.level++;
     b.sp++;
     b.popup = { text: 'Level up!', t: 0 };
-    toast(`⭐ ${b.name} reached level ${b.level} — a skill point is waiting.`, 'good');
+    toast(`${b.name} reached level ${b.level} - skill point ready.`, 'good');
   }
 }
 
@@ -139,7 +139,7 @@ function deposit(b) {
   if (b.carry.n > 0 && b.carry.type) {
     const amount = Math.floor(b.carry.n);
     const fitted = gain(b.carry.type, amount);
-    if (fitted < amount) toast(`📦 Storage is full — ${amount - fitted} ${b.carry.type} went to waste.`, 'warn');
+    if (fitted < amount) toast(`Stores full - ${amount - fitted} ${b.carry.type} wasted.`, 'warn');
     b.carry = { type: null, n: 0 };
     grantXp(b, 3);
   }
@@ -192,7 +192,7 @@ function doWork(b, dt) {
     } else if (b.carry.n >= capacity(b) - 0.01) {
       goDeposit(b);
     }
-  } else { // BUILD or PLANT — both pour labour into a site
+  } else { // BUILD or PLANT - both pour labour into a site
     e.workDone += rate * dt;
     e.pulse = 0.25;
     if (e.workDone >= e.work) {
@@ -210,8 +210,8 @@ function fellTree(tree, b) {
   const seeds = 1 + (b && b.role === 'forager' && G.rng() < 0.5 ? 1 : 0);
   gain('seeds', seeds);
   const left = G.entities.filter((e) => e.kind === 'tree' && e.growth >= 1).length;
-  if (left === 8) toast('🌲 Only 8 grown trees left — start replanting saplings!', 'warn');
-  if (left === 0) toast('🪓 The forest is bare. Plant saplings or the wood runs out for good.', 'bad');
+  if (left === 8) toast('Only 8 trees left - start replanting!', 'warn');
+  if (left === 0) toast('The forest is bare. Plant saplings!', 'bad');
 }
 
 // ------------------------------------------------------------------ update
@@ -239,7 +239,7 @@ export function updateBeavers(dt) {
           b.taskId = task.id;
           if (!setPath(b, task.x, task.y, 'work')) {
             task.claimedBy = null;
-            task.entity.blocked = true;   // unreachable — stop offering it
+            task.entity.blocked = true;   // unreachable - stop offering it
             b.task = null; b.taskId = null;
           }
         } else {
@@ -284,11 +284,11 @@ export function updateBeavers(dt) {
 // ----------------------------------------------------------------- payday
 export function payday() {
   if (!G.beavers.length) {
-    // Nobody left on the payroll — a young beaver wanders in looking for work.
+    // Nobody left on the payroll - a young beaver wanders in looking for work.
     if (G.beavers.length < G.crewCap) {
       const b = makeBeaver('forager', G.lodge.x, G.lodge.y);
       G.beavers.push(b);
-      toast(`🦫 ${b.name}, a young forager, wandered in and offered to work for berries.`, 'good');
+      toast(`${b.name}, a young forager, wandered in looking for work.`, 'good');
     }
     return;
   }
@@ -297,10 +297,10 @@ export function payday() {
     G.resources.berries -= total;
     G.stats.paid += total;
     for (const b of G.beavers) b.morale = Math.min(100, b.morale + 15);
-    toast(`🫐 Payday: ${total} berries paid to ${G.beavers.length} beaver${G.beavers.length > 1 ? 's' : ''}.`, 'info');
+    toast(`Payday: ${total} berries paid to ${G.beavers.length} beaver${G.beavers.length > 1 ? 's' : ''}.`, 'info');
     return;
   }
-  // Not enough in the basket — pay who we can, the rest grumble.
+  // Not enough in the basket - pay who we can, the rest grumble.
   let purse = G.resources.berries;
   const unpaid = [];
   for (const b of G.beavers) {
@@ -310,10 +310,10 @@ export function payday() {
   }
   G.resources.berries = purse;
   G.stats.missedPay++;
-  toast(`💔 Not enough berries! ${unpaid.length} beaver${unpaid.length > 1 ? 's went' : ' went'} unpaid.`, 'bad');
+  toast(`Not enough berries! ${unpaid.length} beaver${unpaid.length > 1 ? 's went' : ' went'} unpaid.`, 'bad');
   for (const b of [...unpaid]) {
     if (b.morale <= 0) {
-      toast(`👋 ${b.name} the ${CREW_JOBS[b.role].name} has left the crew.`, 'bad');
+      toast(`${b.name} the ${CREW_JOBS[b.role].name} quit.`, 'bad');
       fire(b);
     }
   }

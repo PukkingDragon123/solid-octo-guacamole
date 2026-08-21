@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DAM IT — sprite sheet</title>
+<style>
+  body { background: #1d1712; color: #f2e2bf; font: 13px ui-monospace, monospace; margin: 0; padding: 16px; }
+  canvas { image-rendering: pixelated; display: block; margin: 0 auto; }
+  h1 { font-size: 14px; letter-spacing: 2px; text-align: center; }
+</style>
+</head>
+<body>
+<h1>PROCEDURAL SPRITE BANK</h1>
+<canvas id="sheet" width="440" height="470"></canvas>
+<script type="module">
+import * as S from '../js/gfx/sprites.js';
+import { PAL, text, rect } from '../js/gfx/pixel.js';
+
+const c = document.getElementById('sheet');
+const ctx = c.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+rect(ctx, 0, 0, c.width, c.height, PAL.ink);
+
+let x = 6, y = 6, rowH = 0;
+function label(t) { x = 6; y += rowH + 9; rowH = 0; text(ctx, t, x, y, PAL.gold2); y += 9; }
+function put(img) {
+  if (x + img.width > c.width - 6) { x = 6; y += rowH + 3; rowH = 0; }
+  ctx.drawImage(img, x, y);
+  x += img.width + 3;
+  rowH = Math.max(rowH, img.height);
+}
+
+text(ctx, 'terrain', 6, y, PAL.gold2); y += 9;
+for (let v = 0; v < 4; v++) put(S.grassTile(v));
+for (let v = 0; v < 2; v++) put(S.dirtTile(v));
+for (let v = 0; v < 2; v++) put(S.rockTile(v));
+for (let f = 0; f < 4; f++) put(S.waterTile(false, f));
+for (let f = 0; f < 4; f++) put(S.waterTile(true, f));
+put(S.damTile());
+for (let d = 0; d < 4; d++) put(S.foamEdge(d));
+
+label('flora');
+for (let v = 0; v < 3; v++) for (const st of [0.45, 1]) put(S.treeSprite(v, st));
+put(S.saplingSprite()); put(S.stumpSprite());
+for (const id of ['sunberry', 'dewberry', 'goldberry']) { put(S.bushSprite(id, false)); put(S.bushSprite(id, true)); }
+for (const id of ['clover', 'bluebell', 'sunflower']) put(S.flowerSprite(id));
+put(S.reedSprite());
+
+label('crew + wildlife');
+for (const r of ['logger', 'hauler', 'engineer', 'gardener', 'forager']) { put(S.beaverSprite(r, 0)); put(S.beaverSprite(r, 1)); }
+put(S.beaverSprite('logger', 0, true));
+put(S.carrySprite('wood')); put(S.carrySprite('berries'));
+for (const a of ['duck', 'frog', 'rabbit', 'hedgehog', 'songbird', 'otter', 'turtle', 'dragonfly']) put(S.animalSprite(a, 0));
+for (let f = 0; f < 4; f++) put(S.birdSprite(f, true));
+
+label('structures');
+for (const id of ['duck_nest', 'frog_log', 'rabbit_burrow', 'hedgehog_hut', 'bird_house', 'otter_holt', 'turtle_bask', 'shed', 'lodge']) put(S.structureSprite(id));
+put(S.siteSprite(0)); put(S.siteSprite(1));
+for (const i of ['wood', 'berry', 'seed', 'heart', 'axe', 'hammer', 'clock', 'drop', 'spark']) put(S.icon(i));
+
+label('camp (side view)');
+for (let f = 0; f < 2; f++) put(S.playerSprite('idle', f));
+for (let f = 0; f < 4; f++) put(S.playerSprite('walk', f));
+put(S.playerSprite('jump', 0));
+for (const r of ['logger', 'gardener']) for (let f = 0; f < 2; f++) put(S.crewSideSprite(r, f));
+put(S.heronSideSprite(0));
+for (const p of ['jobboard', 'storehouse', 'bunkhouse', 'logpile', 'perch', 'sawhorse', 'lantern', 'bucket']) put(S.propSprite(p));
+
+label('scenery');
+put(S.bgTreeSprite(0)); put(S.bgTreeSprite(1));
+put(S.cloudSprite(0)); put(S.cloudSprite(1));
+put(S.groundStrip());
+put(S.hillSprite(0)); put(S.hillSprite(1));
+
+// blow it up 2x into a second canvas for inspection
+const big = document.createElement('canvas');
+big.width = c.width * 2; big.height = c.height * 2;
+const bctx = big.getContext('2d');
+bctx.imageSmoothingEnabled = false;
+bctx.drawImage(c, 0, 0, big.width, big.height);
+c.replaceWith(big);
+big.id = 'sheet';
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@ import { makeRng, valueNoise, clamp, chebyshev } from './util.js';
 export const isWet = (t) => t === 'water' || t === 'pond';
 export const isDamTile = (tile) => !!(tile && tile.dam);
 
-/** Beavers walk anywhere but bare rock — open water they simply swim across. */
+/** Beavers walk anywhere but bare rock - open water they simply swim across. */
 export function passable(x, y) {
   const tile = tileAt(x, y);
   if (!tile) return false;
@@ -87,7 +87,7 @@ export function generateWorld(seed) {
       const tile = tileAt(x, y);
       const d = distToRiver[tileIndex(x, y)];
       if (isWet(tile.t) || tile.t === 'rock' || d < 2 || d > 4) continue;
-      const score = -Math.abs(x - 5) - Math.abs(y - MAPH / 2) * 0.5 + tile.elev;
+      const score = -Math.abs(x - MAPW * 0.22) - Math.abs(y - MAPH / 2) * 0.4 + tile.elev;
       if (!best || score > best.score) best = { x, y, score };
     }
   }
@@ -95,7 +95,7 @@ export function generateWorld(seed) {
   tileAt(G.lodge.x, G.lodge.y).t = 'dirt';
 
   // ---- forest: clumps of trees away from the lodge and the channel
-  const treeTarget = 46;
+  const treeTarget = 96;
   let guard = 0;
   let placed = 0;
   while (placed < treeTarget && guard++ < 3000) {
@@ -115,7 +115,7 @@ export function generateWorld(seed) {
   }
 
   // ---- a few wild berry bushes to get the crew fed
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 9; i++) {
     for (let tries = 0; tries < 60; tries++) {
       const x = 1 + Math.floor(rng() * (MAPW - 2));
       const y = 1 + Math.floor(rng() * (MAPH - 2));
@@ -200,8 +200,8 @@ export function updateWater(dt) {
   const blocked = computeBlocked();
   if (blocked !== G.riverBlocked) {
     G.riverBlocked = blocked;
-    toast(blocked ? '🌊 The channel is sealed! The water starts to rise.'
-                  : '💧 The river found a way through — the water is draining.',
+    toast(blocked ? ' The channel is sealed! The water starts to rise.'
+                  : ' The river found a way through - the water is draining.',
           blocked ? 'good' : 'warn');
   }
   const before = G.waterLevel;
@@ -217,7 +217,7 @@ export function updateWater(dt) {
 
   if (G.waterLevel !== before) {
     refreshWater();
-    toast(`🌊 Water level is now ${G.waterLevel} of ${MAX_WATER_LEVEL}.`,
+    toast(`Water level is now ${G.waterLevel} of ${MAX_WATER_LEVEL}.`,
           G.waterLevel > before ? 'good' : 'warn');
   }
 }
@@ -276,7 +276,7 @@ export function refreshWater(silent = false) {
   }
   if (drowned) {
     gain('seeds', drowned);
-    if (!silent) toast(`🌧️ ${drowned} plant${drowned > 1 ? 's were' : ' was'} lost to the rising water — ${drowned} seed${drowned > 1 ? 's' : ''} salvaged.`, 'warn');
+    if (!silent) toast(`${drowned} plant${drowned > 1 ? 's' : ''} drowned - seeds salvaged.`, 'warn');
   }
   // A drowned plant may have been someone's job.
   G.jobs = G.jobs.filter((j) => G.entities.includes(j.entity));

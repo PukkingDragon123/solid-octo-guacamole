@@ -1,6 +1,6 @@
 // The single mutable game state, plus the little accessors every system uses.
 
-import { MAPW, MAPH, SAVE_KEY } from './config.js';
+import { MAPW, MAPH, SAVE_KEY, CAMP_GROUND } from './config.js';
 import { makeRng } from './util.js';
 
 export const G = {
@@ -32,8 +32,14 @@ export const G = {
   housed: [],           // animal ids already living here
   animalPool: [],       // ids not yet offered
 
+  // where the player is and what they are doing
+  mode: 'camp',                 // 'camp' (side view) or 'sky' (bird's eye)
+  player: { x: 352, y: CAMP_GROUND, vx: 0, vy: 0, onGround: true, face: 1 },
+  rider: { x: 0, y: 0, vx: 0, vy: 0, face: 1, height: 23, bob: 0, flying: false },
+  station: null,                // the screen open at a camp station, if any
+
   ui: {
-    tab: 'crew',
+    tab: 'contracts',
     build: null,        // blueprint id currently being placed
     selectedBeaver: null,
     hoverTile: null,
@@ -108,8 +114,10 @@ export function logMsg(text, tone = 'info') {
 }
 
 export function toast(text, tone = 'info') {
-  G.toasts.push({ text, tone, t: 0, life: 3.2 });
-  if (G.toasts.length > 5) G.toasts.shift();
+  const last = G.toasts[G.toasts.length - 1];
+  if (last && last.text === text) { last.t = 0; last.repeat = (last.repeat || 1) + 1; return; }
+  G.toasts.push({ text, tone, t: 0, life: 3.4 });
+  if (G.toasts.length > 6) G.toasts.shift();
   logMsg(text, tone);
 }
 
@@ -118,6 +126,7 @@ const SAVED_KEYS = [
   'seed', 'tiles', 'entities', 'beavers', 'jobs', 'nextId', 'resources', 'caps',
   'time', 'day', 'dayT', 'waterLevel', 'riverBlocked', 'riseTimer', 'lodge',
   'crewCap', 'requests', 'housed', 'animalPool', 'stats', 'won',
+  'mode', 'player', 'rider',
 ];
 
 export function saveGame() {

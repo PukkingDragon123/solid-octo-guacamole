@@ -17,7 +17,7 @@ export function canPlace(bpId, x, y) {
     if (!tile.river) return { ok: false, reason: 'Dams go on the river channel' };
     if (tile.dam) return { ok: false, reason: 'Already dammed here' };
   } else if (bp.on.includes('pond')) {
-    if (tile.t !== 'pond') return { ok: false, reason: 'Needs still pond water — raise the water first' };
+    if (tile.t !== 'pond') return { ok: false, reason: 'Needs still pond water - raise the water first' };
   } else if (!bp.on.includes(tile.t)) {
     if (isWet(tile.t)) return { ok: false, reason: 'Cannot build in the water' };
     return { ok: false, reason: `Cannot build on ${tile.t}` };
@@ -71,13 +71,13 @@ export function completeSite(site) {
 
   if (bpId === 'lodge') {
     G.crewCap += 2;
-    toast('🏚️ Another lodge is up — room for two more beavers.', 'good');
+    toast('New lodge - room for two more beavers.', 'good');
   }
   if (bpId === 'shed') {
     G.caps.wood += 80; G.caps.berries += 80; G.caps.seeds += 40;
-    toast('📦 Storage shed finished — room for a lot more supplies.', 'good');
+    toast('Shed built - a lot more storage.', 'good');
   }
-  if (bp.cat === 'habitat') toast(`${bp.icon} ${bp.name} finished. Somebody is going to love that.`, 'good');
+  if (bp.cat === 'habitat') toast(`${bp.name} finished!`, 'good');
 }
 
 export function cancelSite(site) {
@@ -86,20 +86,20 @@ export function cancelSite(site) {
   for (const k in bp.cost) gain(k, Math.max(0, Math.round(bp.cost[k] * (1 - progress) * 0.75)));
   removeJobFor(site);
   removeEntity(site);
-  toast('Site cancelled — some materials were recovered.', 'info');
+  toast('Site cancelled - some materials back.', 'info');
 }
 
 export function demolish(entity) {
   if (entity.kind === 'site') { cancelSite(entity); return; }
   if (entity.kind === 'structure') {
     const bp = BLUEPRINTS[entity.blueprint];
-    if (entity.animalId) { toast('Somebody lives there! Find them another home first.', 'warn'); return; }
+    if (entity.animalId) { toast('Somebody lives there!', 'warn'); return; }
     if (entity.blueprint === 'lodge') { G.crewCap -= 2; }
     if (entity.blueprint === 'shed') { G.caps.wood -= 80; G.caps.berries -= 80; G.caps.seeds -= 40; }
     for (const k in bp.cost) gain(k, Math.round(bp.cost[k] * 0.5));
     removeJobFor(entity);
     removeEntity(entity);
-    toast(`${bp.name} taken down — half the materials came back.`, 'info');
+    toast(`${bp.name} taken down.`, 'info');
     return;
   }
   if (entity.kind === 'plant') {
@@ -115,12 +115,12 @@ export function removeDam(x, y) {
   tile.dam = false;
   gain('wood', 1);
   refreshWater(true);
-  toast('🪵 Dam segment pulled out. The water will find the gap.', 'warn');
+  toast('Dam segment pulled out.', 'warn');
 }
 
 /** Clicking a grown tree marks or unmarks it for felling. */
 export function toggleTreeMark(tree) {
-  if (tree.growth < 1) { toast('That sapling is still growing — let it be.', 'warn'); return; }
+  if (tree.growth < 1) { toast('That sapling is still growing.', 'warn'); return; }
   const existing = jobFor(tree);
   if (existing) { removeJobFor(tree); tree.marked = false; }
   else { tree.marked = true; tree.blocked = false; addJob('CHOP', tree); }
