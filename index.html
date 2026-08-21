@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Average Canadian Simulator</title>
+<link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div id="app">
+  <canvas id="screen"></canvas>
+
+  <!-- ============ TITLE ============ -->
+  <div id="title">
+    <div class="title-inner">
+      <div class="leaf">&#127809;</div>
+      <h1><span>AVERAGE</span><b>CANADIAN</b><span>SIMULATOR</span></h1>
+      <p class="tag">SORRY IN ADVANCE, EH.</p>
+      <div class="btns">
+        <button id="btnPlay" class="big">START YER EMPIRE</button>
+        <button id="btnLoad" class="big ghost">CONTINUE</button>
+      </div>
+      <div class="ctrls">
+        <div><kbd>A</kbd><kbd>D</kbd> MOVE</div>
+        <div><kbd>W</kbd> JUMP</div>
+        <div><kbd>Q</kbd> SWING AXE</div>
+        <div><kbd>E</kbd> INTERACT</div>
+        <div><kbd>R</kbd> APOLOGIZE</div>
+        <div><kbd>F</kbd> RIDE MOOSE</div>
+        <div><kbd>T</kbd> TOSS TIMBIT</div>
+        <div><kbd>TAB</kbd> EMPIRE</div>
+      </div>
+      <p class="fine">HIRE BEAVERS &middot; EMPLOY FERRETS &middot; FUEL MOOSE WITH SYRUP &middot; SELL POUTINE &middot; BECOME PRIME MINISTER OF MAPLE</p>
+    </div>
+  </div>
+
+  <!-- ============ HUD ============ -->
+  <div id="hud" class="hidden">
+    <div class="hud-tl">
+      <div class="chip rank"><b id="rankName">LOST TOURIST</b><i id="rankNext">NEXT: $500</i></div>
+      <div class="chip money"><b id="money">$0</b><i id="rate">+$0/S</i></div>
+      <div class="polite">
+        <span>SORRY METER</span>
+        <div class="bar"><div id="politeBar"></div></div>
+        <em id="politeMult">x1.00</em>
+      </div>
+    </div>
+    <div class="hud-tr" id="resList"></div>
+    <div class="hud-bl" id="crewList"></div>
+    <div class="hud-hint" id="hint"></div>
+    <div class="toasts" id="toasts"></div>
+  </div>
+
+  <!-- ============ PANEL ============ -->
+  <div id="panel" class="hidden"><div class="panel-box" id="panelBox"></div></div>
+
+  <!-- ============ WIN ============ -->
+  <div id="win" class="hidden">
+    <div class="title-inner">
+      <div class="leaf">&#127809;</div>
+      <h1><span>YOU ARE THE</span><b>PRIME MINISTER</b><span>OF MAPLE</span></h1>
+      <p class="tag" id="winStats"></p>
+      <div class="btns"><button id="btnKeep" class="big">KEEP GIVER, EH</button></div>
+    </div>
+  </div>
+
+  <!-- ============ TOUCH ============ -->
+  <div id="touch" class="hidden">
+    <div class="pad-left">
+      <button data-k="left">&#9664;</button><button data-k="right">&#9654;</button>
+    </div>
+    <div class="pad-right">
+      <button data-k="jump">JUMP</button><button data-k="act">E</button>
+      <button data-k="axe">Q</button><button data-k="sorry">SRY</button>
+      <button data-k="ride">F</button><button data-k="menu">MENU</button>
+    </div>
+  </div>
+</div>
+
+<script src="src/sprites.js"></script>
+<script src="src/lines.js"></script>
+<script src="src/world.js"></script>
+<script src="src/entities.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
