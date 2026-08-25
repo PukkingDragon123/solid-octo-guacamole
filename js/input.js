@@ -12,9 +12,24 @@ export const input = {
   dragging: false,
   overCanvas: false,
   wheel: 0,
+  touches: new Map(),        // id -> {x, y}
+  isTouch: false,
 };
 
 const BLOCKED = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
+
+/**
+ * Press or release a key on the game's behalf. The on-screen controls use this,
+ * so every keyboard binding in the game works untouched on a phone.
+ */
+export function setVirtualKey(code, down) {
+  if (down) {
+    if (!input.keys.has(code)) input.pressedKeys.add(code);
+    input.keys.add(code);
+  } else {
+    input.keys.delete(code);
+  }
+}
 
 export function initInput(canvas) {
   window.addEventListener('keydown', (ev) => {
@@ -43,6 +58,58 @@ export function initInput(canvas) {
   });
   canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
   canvas.addEventListener('mouseleave', () => { input.overCanvas = false; });
+  // ---- touch: fingers act as both a pointer and the on-screen buttons
+  const toViewTouch = (t) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (t.clientX - rect.left) / screen.scale,
+      y: (t.clientY - rect.top) / screen.scale,
+    };
+  };
+
+  // `ev.touches` is the authoritative list of fingers still down. Rebuilding
+  // from it every time means a dropped touchend can never leave a phantom
+  // finger stuck on a button.
+  const syncTouches = (ev) => {
+    input.touches.clear();
+    for (const t of ev.touches) input.touches.set(t.identifier, toViewTouch(t));
+    if (!input.touches.size) { input.down = false; input.dragging = false; }
+  };
+
+  canvas.addEventListener('touchstart', (ev) => {
+    ev.preventDefault();
+    input.isTouch = true;
+    syncTouches(ev);
+    const first = ev.changedTouches[0];
+    if (first && !input.consumedByButton) {
+      const p = toViewTouch(first);
+      input.mx = Math.floor(p.x);
+      input.my = Math.floor(p.y);
+      input.overCanvas = true;
+      input.clicked = true;
+      input.down = true;
+      input.dragging = true;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (ev) => {
+    ev.preventDefault();
+    syncTouches(ev);
+    const first = ev.changedTouches[0];
+    if (first && !input.consumedByButton) {
+      const p = toViewTouch(first);
+      input.mx = Math.floor(p.x);
+      input.my = Math.floor(p.y);
+    }
+  }, { passive: false });
+
+  const endTouch = (ev) => {
+    ev.preventDefault();
+    syncTouches(ev);
+  };
+  canvas.addEventListener('touchend', endTouch, { passive: false });
+  canvas.addEventListener('touchcancel', endTouch, { passive: false });
+
   canvas.addEventListener('wheel', (ev) => {
     ev.preventDefault();
     input.wheel += Math.sign(ev.deltaY) * 12;

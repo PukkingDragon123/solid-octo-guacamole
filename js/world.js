@@ -129,10 +129,51 @@ export function generateWorld(seed) {
     }
   }
 
+  scatterClutter(rng);
+
   G.waterLevel = 0;
   G.riverBlocked = false;
   G.riseTimer = 0;
   refreshWater(true);
+}
+
+/** Mushrooms, ferns, fallen logs and flowers, thickest near the trees. */
+export function scatterClutter(rng = G.rng) {
+  G.clutter = [];
+  const KINDS = ['mushroom', 'fern', 'tallgrass', 'log', 'stone', 'flowers'];
+  const treeAt = new Set(G.entities.filter((e) => e.kind === 'tree').map((e) => `${e.x},${e.y}`));
+  const nearTree = (x, y) => {
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (treeAt.has(`${x + dx},${y + dy}`)) return true;
+    return false;
+  };
+  const taken = new Set();
+  let tries = 0;
+  while (G.clutter.length < 190 && tries++ < 6000) {
+    const x = Math.floor(rng() * MAPW);
+    const y = Math.floor(rng() * MAPH);
+    const key = `${x},${y}`;
+    if (taken.has(key)) continue;
+    const tile = tileAt(x, y);
+    if (!tile || isWet(tile.t) || tile.t === 'rock') continue;
+    const wooded = nearTree(x, y);
+    // the forest floor is busy; open meadow is sparse
+    if (!wooded && rng() < 0.72) continue;
+    let kind;
+    const roll = rng();
+    if (wooded) kind = roll < 0.3 ? 'mushroom' : roll < 0.55 ? 'fern' : roll < 0.72 ? 'log' : roll < 0.86 ? 'tallgrass' : 'stone';
+    else kind = roll < 0.45 ? 'flowers' : roll < 0.8 ? 'tallgrass' : 'stone';
+    taken.add(key);
+    G.clutter.push({ x, y, kind, variant: Math.floor(rng() * 4) });
+  }
+}
+
+export function clutterAt(x, y) {
+  return G.clutter.find((c) => c.x === x && c.y === y) || null;
+}
+
+export function clearClutter(x, y) {
+  const i = G.clutter.findIndex((c) => c.x === x && c.y === y);
+  if (i >= 0) G.clutter.splice(i, 1);
 }
 
 export function makeTree(x, y, rng = G.rng, grown = true) {
@@ -140,7 +181,7 @@ export function makeTree(x, y, rng = G.rng, grown = true) {
     kind: 'tree', x, y,
     wood: 13 + Math.floor(rng() * 8),
     growth: grown ? 1 : 0,
-    variant: Math.floor(rng() * 3),
+    variant: Math.floor(rng() * 6),
     sway: rng() * 6.28,
     marked: false,
   };
@@ -252,6 +293,7 @@ export function refreshWater(silent = false) {
   }
 
   let drowned = 0;
+  const pondNow = [];
   for (let i = 0; i < G.tiles.length; i++) {
     const tile = G.tiles[i];
     const wet = flooded[i] === 1;
@@ -262,6 +304,7 @@ export function refreshWater(silent = false) {
       } else {
         tile.t = level > 0 ? 'pond' : 'water';
       }
+      pondNow.push(i);
       const occupant = G.occupied.get(i);
       if (occupant && (occupant.kind === 'tree' || (occupant.kind === 'plant' && occupant.blueprint !== 'reed'))) {
         removeEntity(occupant);
@@ -274,6 +317,19 @@ export function refreshWater(silent = false) {
       tile.t = 'water';
     }
   }
+  // undergrowth cannot survive underwater; lily pads drift in instead
+  G.clutter = G.clutter.filter((c) => {
+    const tile = tileAt(c.x, c.y);
+    return !(tile && isWet(tile.t) && c.kind !== 'lilypad');
+  });
+  const hasClutter = new Set(G.clutter.map((c) => `${c.x},${c.y}`));
+  for (const i of pondNow) {
+    const x = i % MAPW, y = (i / MAPW) | 0;
+    if (hasClutter.has(`${x},${y}`)) continue;
+    if (G.occupied.get(i)) continue;
+    if (G.rng() < 0.055) G.clutter.push({ x, y, kind: 'lilypad', variant: 0 });
+  }
+
   if (drowned) {
     gain('seeds', drowned);
     if (!silent) toast(`${drowned} plant${drowned > 1 ? 's' : ''} drowned - seeds salvaged.`, 'warn');

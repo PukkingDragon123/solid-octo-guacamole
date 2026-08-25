@@ -6,6 +6,7 @@ import { G } from '../state.js';
 import { PAL, rect, px, text, disc, line, rngFrom } from '../gfx/pixel.js';
 import { cam } from '../gfx/screen.js';
 import * as S from '../gfx/sprites.js';
+import { drawCampCritters } from '../critters.js';
 
 export const CAMP_BOUNDS = { w: CAMP_W, h: VIEW_H };
 
@@ -220,6 +221,19 @@ function drawGround(ctx) {
     for (let k = 0; k < len; k++) px(ctx, sx + (k % 3 === 2 ? 1 : 0), CAMP_GROUND + 36 + k, PAL.dirt2);
   }
 
+  // mushrooms, ferns and logs along the camp path
+  const flora = rngFrom(5150);
+  const KINDS = ['mushroom', 'fern', 'tallgrass', 'log', 'stone', 'flowers'];
+  for (let i = 0; i < 46; i++) {
+    const wx = flora() * CAMP_W;
+    const sx = cam.sx(wx);
+    const kind = KINDS[(flora() * KINDS.length) | 0];
+    const variant = (flora() * 4) | 0;
+    if (sx < -18 || sx > VIEW_W) continue;
+    const img = S.clutterSprite(kind, variant);
+    ctx.drawImage(img, sx, CAMP_GROUND - img.height + 3);
+  }
+
   // wildflowers and tufts along the path
   const tuft = rngFrom(31337);
   for (let i = 0; i < 110; i++) {
@@ -300,6 +314,7 @@ export function drawCamp(ctx, t) {
   drawGround(ctx);
   drawProps(ctx, t);
   drawRestingCrew(ctx, t);
+  drawCampCritters(ctx, t);
 
   // night wash over the whole camp
   const phase = skyPhase(G.dayT);

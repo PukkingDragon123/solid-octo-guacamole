@@ -16,8 +16,14 @@ export const HOTBAR = [
   'clover', 'bluebell', 'sunflower', 'reed',
 ];
 export const HABITATS = [
-  'duck_nest', 'frog_log', 'rabbit_burrow', 'hedgehog_hut',
-  'bird_house', 'otter_holt', 'turtle_bask', 'lodge', 'shed',
+  'duck_nest', 'frog_log', 'rabbit_burrow', 'hedgehog_hut', 'bird_house',
+  'otter_holt', 'turtle_bask', 'squirrel_drey', 'bee_hive', 'kingfisher_post',
+];
+export const CAMP_BUILD = ['lodge', 'shed'];
+export const PAGES = [
+  { name: 'GROUNDWORK', slots: HOTBAR },
+  { name: 'HABITATS', slots: HABITATS },
+  { name: 'CAMP', slots: CAMP_BUILD },
 ];
 
 function costText(bp) {
@@ -68,12 +74,13 @@ export function drawDayChip(ctx) {
   }
 }
 
-export function drawToasts(ctx, dt, bottomGap = 16) {
+export function drawToasts(ctx, dt, bottomGap = 16, topAlign = false) {
   for (const t of G.toasts) t.t += dt;
   while (G.toasts.length && G.toasts[0].t > G.toasts[0].life) G.toasts.shift();
   const shown = G.toasts.slice(-3);
   const maxChars = Math.floor((VIEW_W - 30) / 6);
-  let y = VIEW_H - bottomGap - shown.length * 13;
+  // on a phone the bottom corners belong to the thumbs, so messages move up top
+  let y = topAlign ? 20 : VIEW_H - bottomGap - shown.length * 13;
   for (const toast of shown) {
     const fade = Math.min(1, (toast.life - toast.t) * 2);
     const body = toast.repeat > 1 ? `${toast.text} x${toast.repeat}` : toast.text;
@@ -92,7 +99,8 @@ export function drawToasts(ctx, dt, bottomGap = 16) {
 
 /** The tool belt: everything you can place, only while airborne. */
 export function drawHotbar(ctx, t) {
-  const slots = G.ui.hotbarPage === 1 ? HABITATS : HOTBAR;
+  const page = PAGES[G.ui.hotbarPage % PAGES.length];
+  const slots = page.slots;
   const size = 20;
   const w = slots.length * size + 4;
   const x = Math.round((VIEW_W - w) / 2);
@@ -103,8 +111,7 @@ export function drawHotbar(ctx, t) {
   rect(ctx, x - 1, y - 11, w + 2, 1, PAL.wood2);
 
   // page toggle
-  const pageLabel = G.ui.hotbarPage === 1 ? 'HABITATS' : 'GROUNDWORK';
-  text(ctx, `TAB  ${pageLabel}`, x + 2, y - 10, PAL.gold2);
+  text(ctx, `TAB  ${page.name}`, x + 2, y - 10, PAL.gold2);
 
   let clicked = null;
   slots.forEach((id, i) => {
@@ -120,7 +127,7 @@ export function drawHotbar(ctx, t) {
     ctx.drawImage(img, 0, Math.max(0, img.height - sh), sw, sh,
                   sx + ((size - 2 - sw) >> 1), y + (size - 2 - sh), sw, sh);
     if (!afford) { ctx.fillStyle = 'rgba(20,15,10,0.55)'; ctx.fillRect(sx, y, size - 2, size - 2); }
-    text(ctx, String(i + 1), sx + 1, y + 1, active ? PAL.ink : PAL.paper3);
+    text(ctx, String((i + 1) % 10), sx + 1, y + 1, active ? PAL.ink : PAL.paper3);
     if (hovering(sx, y, size - 2, size - 2)) {
       frame(ctx, sx - 1, y - 1, size, size, PAL.gold2);
       const tip = `${bp.name}  ${costText(bp)}`;

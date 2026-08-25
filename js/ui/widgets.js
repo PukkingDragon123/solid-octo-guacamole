@@ -4,8 +4,15 @@
 import { PAL, rect, frame, px, text, textWidth } from '../gfx/pixel.js';
 import { input } from '../input.js';
 
+/**
+ * Hit test for every widget in the game. Fingers are far less precise than a
+ * mouse pointer, so touch play gets a few pixels of slop around each target.
+ */
 export function hovering(x, y, w, h) {
-  return input.overCanvas && input.mx >= x && input.my >= y && input.mx < x + w && input.my < y + h;
+  const slop = input.isTouch ? 4 : 0;
+  return input.overCanvas
+    && input.mx >= x - slop && input.my >= y - slop
+    && input.mx < x + w + slop && input.my < y + h + slop;
 }
 
 /** A plank panel with a carved border. Returns its inner content box. */

@@ -261,6 +261,33 @@ export function text(ctx, str, x, y, color = PAL.paper, opts = {}) {
   return width;
 }
 
+/**
+ * The same bitmap font, blown up by a whole number. Used for the title.
+ * `outlineColor` traces the letters so they hold up against a busy sky.
+ */
+export function bigText(ctx, str, x, y, scale, color, outlineColor) {
+  const s = String(str).toUpperCase();
+  const width = s.length * (FONT_W + 1) * scale - scale;
+  const ox = Math.round(x - width / 2);
+  const draw = (col, dx, dy) => {
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === ' ') continue;
+      const g = glyphSurface(s[i], col);
+      ctx.drawImage(g, 0, 0, FONT_W, FONT_H,
+                    ox + i * (FONT_W + 1) * scale + dx, Math.round(y) + dy,
+                    FONT_W * scale, FONT_H * scale);
+    }
+  };
+  if (outlineColor) {
+    for (const [dx, dy] of [[-scale, 0], [scale, 0], [0, -scale], [0, scale],
+                            [-scale, -scale], [scale, -scale], [-scale, scale], [scale, scale]]) {
+      draw(outlineColor, dx, dy);
+    }
+  }
+  draw(color, 0, 0);
+  return width;
+}
+
 /** Word-wrap helper: returns an array of lines that fit `maxWidth` pixels. */
 export function wrap(str, maxWidth) {
   const words = String(str).toUpperCase().split(/\s+/);
@@ -314,6 +341,32 @@ export function outline(ctx, w, h, color = PAL.ink, threshold = 128) {
   }
   ctx.fillStyle = color;
   for (let i = 0; i < edge.length; i += 2) ctx.fillRect(edge[i], edge[i + 1], 1, 1);
+}
+
+/**
+ * Paint the edges of a silhouette that face the light. Give it the direction
+ * the light comes from and it finds every solid pixel with nothing beyond it
+ * that way — which is exactly where a rim highlight belongs.
+ */
+export function rimLight(ctx, w, h, color, dirX = 1, dirY = -1, colorSoft = null) {
+  const img = ctx.getImageData(0, 0, w, h);
+  const data = img.data;
+  const solid = (x, y) => x >= 0 && y >= 0 && x < w && y < h && data[(y * w + x) * 4 + 3] > 128;
+  const hard = [];
+  const soft = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!solid(x, y)) continue;
+      const openX = dirX && !solid(x + dirX, y);
+      const openY = dirY && !solid(x, y + dirY);
+      if (openX && openY) hard.push(x, y);
+      else if (openX || openY) soft.push(x, y);
+    }
+  }
+  ctx.fillStyle = colorSoft || color;
+  for (let i = 0; i < soft.length; i += 2) ctx.fillRect(soft[i], soft[i + 1], 1, 1);
+  ctx.fillStyle = color;
+  for (let i = 0; i < hard.length; i += 2) ctx.fillRect(hard[i], hard[i + 1], 1, 1);
 }
 
 /** Slip a soft shadow in behind whatever has already been drawn. */

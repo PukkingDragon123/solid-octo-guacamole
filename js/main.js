@@ -5,10 +5,11 @@ import {
   TILE, MAPW, MAPH, WORLD_W, WORLD_H, VIEW_W, VIEW_H, CAMP_W, CAMP_GROUND,
   DAY_LENGTH, BLUEPRINTS, TIPS,
 } from './config.js';
-import { G, tileAt, entityAt, toast, saveGame, loadGame, clearSave, logMsg } from './state.js';
+import { G, tileAt, entityAt, toast, saveGame, loadGame, clearSave, hasSave, logMsg } from './state.js';
 import { generateWorld, updateWater, refreshWater } from './world.js';
 import { updateBeavers, payday, makeBeaver } from './beavers.js';
 import { updatePlants } from './plants.js';
+import { seedCritters, updateCritters, seedCampCritters, updateCampCritters, reseedFish } from './critters.js';
 import { updateAnimals, resetAnimalPool, spawnRequest } from './animals.js';
 import { placeSite, completeSite, toggleTreeMark, demolish, removeDam, canPlace } from './build.js';
 
@@ -20,10 +21,19 @@ import * as S from './gfx/sprites.js';
 import { drawValley, drawCursor, drawRider, invalidateGround, buildGround } from './scenes/valley.js';
 import { drawCamp, drawPlayer, nearestStation, CAMP_BOUNDS, STATIONS, skyPhase } from './scenes/camp.js';
 import { updateCampPlayer, updateRider, seatRider } from './player.js';
-import { drawResourceStrip, drawDayChip, drawToasts, drawHotbar, drawHint, HOTBAR, HABITATS } from './ui/hud.js';
+import { drawResourceStrip, drawDayChip, drawToasts, drawHotbar, drawHint, PAGES } from './ui/hud.js';
 import { drawStation, openStation, closeStation } from './ui/board.js';
-import { keyPrompt, button, panel, scrim } from './ui/widgets.js';
+import { keyPrompt, button, panel, scrim, hovering } from './ui/widgets.js';
+import { updateTouch, drawTouchControls, drawOrientationHint, touchUI } from './ui/touch.js';
+import { drawTitleScene, drawTitleText } from './scenes/title.js';
 import { mini, openMinigame, updateMinigame, drawMinigame, canPlay } from './minigame.js';
+
+const CREW_JOBS_KEYS = { logger: 1, hauler: 1, engineer: 1, gardener: 1, forager: 1 };
+const ANIMAL_KEYS = ['duck', 'frog', 'rabbit', 'hedgehog', 'songbird', 'otter', 'turtle',
+                     'dragonfly', 'squirrel', 'bee', 'kingfisher'];
+const STRUCTURE_KEYS = ['duck_nest', 'frog_log', 'rabbit_burrow', 'hedgehog_hut', 'bird_house',
+                        'otter_holt', 'turtle_bask', 'squirrel_drey', 'bee_hive', 'kingfisher_post',
+                        'lodge', 'shed'];
 
 const canvas = document.getElementById('game');
 const ctx = initScreen(canvas);
@@ -64,23 +74,69 @@ function newGame() {
   spawnRequest(true);
   seatRider();
   invalidateGround();
+  seedCritters();
+  seedCampCritters();
   logMsg('Welcome to the valley.', 'good');
 }
 
-function boot() {
-  if (loadGame()) {
-    refreshWater(true);
-    seatRider();
-    G.station = null;
-    G.ui.hotbarPage = G.ui.hotbarPage || 0;
-    logMsg('Save loaded.', 'info');
-  } else {
-    newGame();
-    helpOpen = true;
-  }
+/** Shared tail end of both "new valley" and "continue". */
+function enterGame() {
   invalidateGround();
   buildGround();
-  cam.centreOn(G.player.x, VIEW_H / 2, CAMP_BOUNDS);
+  seedCritters();
+  seedCampCritters();
+  G.station = null;
+  G.ui.hotbarPage = G.ui.hotbarPage || 0;
+  cam.centreOn(G.mode === 'sky' ? G.rider.x : G.player.x,
+               G.mode === 'sky' ? G.rider.y : VIEW_H / 2,
+               G.mode === 'sky' ? SKY_BOUNDS : CAMP_BOUNDS);
+  screenMode = 'game';
+  last = performance.now();
+}
+
+function startNewGame() {
+  newGame();
+  enterGame();
+  helpOpen = true;
+}
+
+function continueGame() {
+  if (!loadGame()) { startNewGame(); return; }
+  refreshWater(true);
+  seatRider();
+  logMsg('Save loaded.', 'info');
+  enterGame();
+}
+
+// Generating every sprite up front means the game never stutters later. The
+// work is spread over a few frames so the title screen paints immediately.
+const WARMUP = [
+  () => { for (let v = 0; v < 4; v++) { S.grassTile(v); S.grassTile(v, true); } },
+  () => { for (let v = 0; v < 4; v++) { S.rockTile(v); S.rockTile(v, true); S.dirtTile(v & 1); } },
+  () => { for (let f = 0; f < 4; f++) for (const still of [0, 1]) for (const deep of [0, 1]) S.waterTile(!!still, f, !!deep); },
+  () => { for (let d = 0; d < 4; d++) S.foamEdge(d); S.damTile(); },
+  () => { for (let v = 0; v < S.TREE_SPECIES; v++) for (const w of [0, 1, 2]) S.treeSprite(v, 1, w); },
+  () => { for (let v = 0; v < S.TREE_SPECIES; v++) S.treeSprite(v, 0.45, 1); S.saplingSprite(); S.stumpSprite(); },
+  () => { for (const k of S.CLUTTER_KINDS) for (let v = 0; v < 4; v++) S.clutterSprite(k, v); S.clutterSprite('lilypad', 0); },
+  () => { for (const id of ['sunberry', 'dewberry', 'goldberry']) { S.bushSprite(id, true); S.bushSprite(id, false); }
+          for (const id of ['clover', 'bluebell', 'sunflower']) S.flowerSprite(id); S.reedSprite(); },
+  () => { for (const r of Object.keys(CREW_JOBS_KEYS)) for (const f of [0, 1]) { S.beaverSprite(r, f); S.beaverSprite(r, f, true); S.crewSideSprite(r, f); } },
+  () => { for (const id of ANIMAL_KEYS) for (const f of [0, 1]) S.animalSprite(id, f); },
+  () => { for (const id of STRUCTURE_KEYS) S.structureSprite(id); S.siteSprite(0); S.siteSprite(1); },
+  () => { for (let f = 0; f < 4; f++) { S.birdSprite(f, true); S.flyingBirdSprite(f); } S.heronSideSprite(0); S.heronSideSprite(1); },
+  () => { for (const p of ['jobboard', 'storehouse', 'bunkhouse', 'logpile', 'perch', 'sawhorse', 'lantern', 'bucket']) S.propSprite(p); },
+  () => { for (const pose of ['idle', 'walk', 'jump']) for (let f = 0; f < 4; f++) S.playerSprite(pose, f);
+          S.groundStrip(); S.hillSprite(0); S.hillSprite(1); S.cloudSprite(0); S.cloudSprite(1);
+          S.bgTreeSprite(0); S.bgTreeSprite(1); S.bgTreeSprite(0, true); S.bgTreeSprite(1, true); },
+  () => { for (const n of ['wood', 'berry', 'seed', 'heart', 'axe', 'hammer', 'clock', 'drop', 'spark']) S.icon(n);
+          S.carrySprite('wood'); S.carrySprite('berries'); S.shadowSprite(16); S.shadowSprite(20); },
+];
+
+let screenMode = 'title';
+let warmIndex = 0;
+
+function boot() {
+  // nothing to do but show the title; the world is built when you pick an option
 }
 
 // ------------------------------------------------------------- simulation
@@ -102,7 +158,7 @@ function simulate(dt) {
     const before = G.waterLevel;
     updateWater(waterTimer);
     waterTimer = 0;
-    if (before !== G.waterLevel) invalidateGround();
+    if (before !== G.waterLevel) { invalidateGround(); reseedFish(); }
   }
   autosave += dt;
   if (autosave >= 30) { autosave = 0; saveGame(); }
@@ -150,12 +206,12 @@ let markMode = null;
 
 function handleSkyInput() {
   // tool selection
-  if (pressed('Tab')) G.ui.hotbarPage = G.ui.hotbarPage ? 0 : 1;
-  const slots = G.ui.hotbarPage ? HABITATS : HOTBAR;
-  for (let i = 0; i < 9; i++) {
-    if (pressed(`Digit${i + 1}`)) {
+  if (pressed('Tab')) G.ui.hotbarPage = (G.ui.hotbarPage + 1) % PAGES.length;
+  const slots = PAGES[G.ui.hotbarPage % PAGES.length].slots;
+  for (let i = 0; i < 10; i++) {
+    if (pressed(`Digit${(i + 1) % 10}`)) {
       const id = slots[i];
-      G.ui.build = G.ui.build === id ? null : id;
+      if (id) G.ui.build = G.ui.build === id ? null : id;
     }
   }
   if (pressed('KeyQ')) G.ui.build = null;
@@ -237,6 +293,9 @@ function step(now) {
 }
 
 function update(real) {
+  const overlayNow = helpOpen || mini.active || !!G.station || screenMode === 'title';
+  updateTouch(G.mode, overlayNow);
+  if (screenMode === 'title') { updateTitle(real); return; }
   updateMinigame(real);
   tipTimer += real;
 
@@ -265,10 +324,12 @@ function update(real) {
   if (simDt > 0) simulate(simDt);
 
   if (G.mode === 'camp') {
+    updateCampCritters(real);
     updateCampPlayer(real, busy);
     cam.follow(G.player.x, VIEW_H / 2, real, CAMP_BOUNDS, 8);
     if (!busy) handleCampInput();
   } else {
+    updateCritters(real);
     updateRider(real, busy);
     cam.follow(G.rider.x, G.rider.y, real, SKY_BOUNDS, 7);
     if (!busy) handleSkyInput();
@@ -282,6 +343,8 @@ function update(real) {
 }
 
 function render(real) {
+  if (drawOrientationHint(ctx)) return;
+  if (screenMode === 'title') { renderTitle(real); drawTouchControls(ctx, performance.now() / 1000); return; }
   const t = G.time;
   ctx.imageSmoothingEnabled = false;
 
@@ -307,17 +370,21 @@ function render(real) {
   if (G.mode === 'sky' && !G.station && !mini.active && !helpOpen) {
     const picked = drawHotbar(ctx, t);
     if (picked) G.ui.build = G.ui.build === picked ? null : picked;
-    drawHint(ctx, G.ui.build ? 'CLICK TO PLACE - E CANCELS' : 'E  FLY HOME', PAL.paper3);
+    drawHint(ctx, G.ui.build
+      ? (touchUI.enabled ? 'TAP THE VALLEY TO PLACE' : 'CLICK TO PLACE - E CANCELS')
+      : (touchUI.enabled ? 'TAP A TREE TO FELL IT' : 'E  FLY HOME'), PAL.paper3);
   }
   if (G.paused) {
     text(ctx, 'PAUSED', VIEW_W / 2, 30, PAL.gold2, { align: 'center', shadow: PAL.ink });
   }
-  drawToasts(ctx, real, G.mode === 'sky' ? 44 : 16);
+  drawToasts(ctx, real, G.mode === 'sky' ? 44 : 16, touchUI.enabled);
 
   // --- overlays
   if (mini.active) { if (!drawMinigame(ctx, performance.now() / 1000)) closeMinigame2(); }
   else if (G.station) drawStation(ctx, performance.now() / 1000, real);
   if (helpOpen) drawHelp(ctx);
+
+  drawTouchControls(ctx, performance.now() / 1000);
 
   if (fade.dur > 0) {
     const half = fade.dur / 2;
@@ -344,6 +411,50 @@ function nightWash(ctx) {
   ctx.fillStyle = phase === 'night' ? 'rgba(24,32,72,0.34)'
     : phase === 'dusk' ? 'rgba(120,60,60,0.18)' : 'rgba(200,130,80,0.14)';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+}
+
+// ------------------------------------------------------------------ title
+let titleT = 0;
+
+function updateTitle(real) {
+  titleT += real;
+  if (warmIndex < WARMUP.length) {
+    // one batch per frame keeps the screen responsive while it builds
+    WARMUP[warmIndex++]();
+  }
+}
+
+function renderTitle(real) {
+  drawTitleScene(ctx, titleT);
+  drawTitleText(ctx, titleT);
+
+  if (warmIndex < WARMUP.length) {
+    const p = warmIndex / WARMUP.length;
+    const w = 120, x = (VIEW_W - w) >> 1, y = VIEW_H - 30;
+    text(ctx, 'CARVING THE VALLEY', VIEW_W / 2, y - 11, PAL.paper2, { align: 'center', shadow: PAL.black });
+    rect(ctx, x, y, w, 6, 'rgba(21,14,40,0.8)');
+    rect(ctx, x + 1, y + 1, Math.round((w - 2) * p), 4, PAL.gold2);
+    frame(ctx, x, y, w, 6, PAL.ink);
+    return;
+  }
+
+  const saved = hasSave();
+  const bx = 132 - 44, by = 90;
+  if (saved) {
+    if (button(ctx, bx, by, 88, 17, 'CONTINUE')) continueGame();
+    if (button(ctx, bx, by + 21, 88, 17, 'NEW VALLEY')) startNewGame();
+    if (button(ctx, bx, by + 42, 88, 17, 'HOW TO PLAY')) { startNewGame(); helpOpen = true; }
+  } else {
+    if (button(ctx, bx, by, 88, 17, 'START')) startNewGame();
+    if (button(ctx, bx, by + 21, 88, 17, 'HOW TO PLAY')) { startNewGame(); helpOpen = true; }
+  }
+  if (Math.floor(titleT * 1.4) % 2 === 0) {
+    text(ctx, 'PRESS ENTER', VIEW_W / 2, VIEW_H - 20, PAL.paper3, { align: 'center', shadow: PAL.black });
+  }
+  if (pressed('Enter', 'Space', 'KeyE')) {
+    consume('Enter', 'Space', 'KeyE');
+    if (saved) continueGame(); else startNewGame();
+  }
 }
 
 // ------------------------------------------------------------------- help
@@ -378,6 +489,13 @@ function drawHelp(ctx) {
 boot();
 requestAnimationFrame(step);
 window.addEventListener('beforeunload', () => saveGame());
+
+Object.defineProperty(window, '__scale', { get: () => screen.scale });
+Object.defineProperty(window, '__camx', { get: () => Math.round(cam.x) });
+Object.defineProperty(window, '__camy', { get: () => Math.round(cam.y) });
+Object.defineProperty(window, '__touchEnabled', { get: () => touchUI.enabled });
+
+Object.defineProperty(window, '__inputSnapshot', { get: () => ({ mx: input.mx, my: input.my, over: input.overCanvas, clicked: input.clicked, touches: input.touches.size, isTouch: input.isTouch }) });
 
 window.DAMIT = {
   G, simulate, newGame, placeSite, completeSite, spawnRequest, makeBeaver,

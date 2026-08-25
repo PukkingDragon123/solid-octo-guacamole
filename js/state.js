@@ -8,6 +8,7 @@ export const G = {
   rng: makeRng(1),
   tiles: [],            // flat MAPW*MAPH array of tile records
   entities: [],         // trees, plants, structures, build sites, animals
+  clutter: [],          // mushrooms, ferns, logs - decoration only, never blocks
   occupied: new Map(),  // tileIndex -> entity (one static entity per tile)
   beavers: [],
   jobs: [],
@@ -125,7 +126,7 @@ export function toast(text, tone = 'info') {
 const SAVED_KEYS = [
   'seed', 'tiles', 'entities', 'beavers', 'jobs', 'nextId', 'resources', 'caps',
   'time', 'day', 'dayT', 'waterLevel', 'riverBlocked', 'riseTimer', 'lodge',
-  'crewCap', 'requests', 'housed', 'animalPool', 'stats', 'won',
+  'crewCap', 'requests', 'housed', 'animalPool', 'stats', 'won', 'clutter',
   'mode', 'player', 'rider',
 ];
 
@@ -165,6 +166,10 @@ export function loadGame() {
     console.warn('DAM IT: save was unreadable', err);
     return false;
   }
+}
+
+export function hasSave() {
+  try { return !!localStorage.getItem(SAVE_KEY); } catch (err) { return false; }
 }
 
 export function clearSave() {

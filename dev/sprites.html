@@ -11,7 +11,7 @@
 </head>
 <body>
 <h1>PROCEDURAL SPRITE BANK</h1>
-<canvas id="sheet" width="440" height="470"></canvas>
+<canvas id="sheet" width="440" height="620"></canvas>
 <script type="module">
 import * as S from '../js/gfx/sprites.js';
 import { PAL, text, rect } from '../js/gfx/pixel.js';
@@ -40,7 +40,15 @@ put(S.damTile());
 for (let d = 0; d < 4; d++) put(S.foamEdge(d));
 
 label('flora');
-for (let v = 0; v < 3; v++) for (const st of [0.45, 1]) put(S.treeSprite(v, st));
+for (let v = 0; v < S.TREE_SPECIES; v++) put(S.treeSprite(v, 1, 1));
+label('trees - young + sway frames');
+for (let v = 0; v < S.TREE_SPECIES; v++) put(S.treeSprite(v, 0.45, 1));
+for (const w of [0, 1, 2]) put(S.treeSprite(0, 1, w));
+for (const w of [0, 1, 2]) put(S.treeSprite(3, 1, w));
+label('undergrowth');
+for (const k of S.CLUTTER_KINDS) for (let v = 0; v < 3; v++) put(S.clutterSprite(k, v));
+put(S.clutterSprite('lilypad', 0));
+label('flora');
 put(S.saplingSprite()); put(S.stumpSprite());
 for (const id of ['sunberry', 'dewberry', 'goldberry']) { put(S.bushSprite(id, false)); put(S.bushSprite(id, true)); }
 for (const id of ['clover', 'bluebell', 'sunflower']) put(S.flowerSprite(id));

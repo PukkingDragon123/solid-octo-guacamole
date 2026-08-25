@@ -136,6 +136,21 @@ export const BLUEPRINTS = {
     cost: { wood: 16 }, work: 10, on: ['pond'], jobType: 'BUILD',
     desc: 'A sun-warmed platform over the pond.',
   },
+  squirrel_drey: {
+    id: 'squirrel_drey', name: 'Squirrel Drey', cat: 'habitat',
+    cost: { wood: 11 }, work: 7, on: ['grass', 'dirt'], jobType: 'BUILD',
+    desc: 'A ball of twigs and leaves, wedged up in the branches.',
+  },
+  bee_hive: {
+    id: 'bee_hive', name: 'Bee Skep', cat: 'habitat',
+    cost: { wood: 9 }, work: 6, on: ['grass', 'dirt'], jobType: 'BUILD',
+    desc: 'A coiled straw dome. Put it where the flowers are.',
+  },
+  kingfisher_post: {
+    id: 'kingfisher_post', name: 'Fishing Post', cat: 'habitat',
+    cost: { wood: 15 }, work: 9, on: ['grass', 'dirt'], jobType: 'BUILD',
+    desc: 'A tall post to dive from. Wants deep water in front of it.',
+  },
   lodge: {
     id: 'lodge', name: 'Crew Lodge', cat: 'base',
     cost: { wood: 24 }, work: 12, on: ['grass', 'dirt'], jobType: 'BUILD',
@@ -226,6 +241,38 @@ export const ANIMALS = [
       { type: 'water', level: 3 },
     ],
     reward: { hearts: 3, berries: 45, seeds: 8, skill: 1 },
+  },
+  {
+    id: 'squirrel', name: 'Red Squirrel', color: '#a8541f', near: 'land', radius: 6,
+    intro: 'A drey up in the branches, plenty of trees, and sunflower seeds.',
+    needs: [
+      { type: 'structure', id: 'squirrel_drey', count: 1 },
+      { type: 'tree', count: 6 },
+      { type: 'plant', id: 'sunflower', count: 2 },
+    ],
+    reward: { hearts: 2, berries: 24, seeds: 8 },
+  },
+  {
+    id: 'bee', name: 'Bumblebee', color: '#e0a02e', near: 'land', radius: 6,
+    intro: 'A skep to live in, and something in flower all around it.',
+    needs: [
+      { type: 'structure', id: 'bee_hive', count: 1 },
+      { type: 'plant', id: 'clover', count: 2 },
+      { type: 'plant', id: 'bluebell', count: 2 },
+      { type: 'plant', id: 'sunflower', count: 2 },
+    ],
+    reward: { hearts: 2, berries: 34, seeds: 10 },
+  },
+  {
+    id: 'kingfisher', name: 'Kingfisher', color: '#2f83b8', near: 'water', radius: 7,
+    intro: 'A high post to dive from, deep still water, and reeds to hide in.',
+    needs: [
+      { type: 'structure', id: 'kingfisher_post', count: 1 },
+      { type: 'tile', tile: 'pond', count: 12 },
+      { type: 'plant', id: 'reed', count: 2 },
+      { type: 'water', level: 2 },
+    ],
+    reward: { hearts: 3, berries: 38, seeds: 8, skill: 1 },
   },
   {
     id: 'dragonfly', name: 'Dragonfly', color: '#4fa9d8', near: 'water', radius: 6,

@@ -12,8 +12,9 @@ const MAX_ACTIVE_REQUESTS = 3;
 // asks for a deep-water holt on day two.
 const TIERS = [
   ['duck', 'rabbit'],
-  ['frog', 'dragonfly', 'hedgehog'],
-  ['songbird', 'otter', 'turtle'],
+  ['frog', 'dragonfly', 'hedgehog', 'squirrel'],
+  ['songbird', 'bee', 'otter'],
+  ['turtle', 'kingfisher'],
 ];
 
 export function resetAnimalPool() {

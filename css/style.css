@@ -13,6 +13,10 @@ html, body {
 
 #game {
   image-rendering: pixelated;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
   image-rendering: crisp-edges;
   display: block;
   cursor: crosshair;
@@ -27,3 +31,9 @@ html, body {
 #fallback { position: absolute; font-size: 12px; letter-spacing: 2px; }
 
 @media (prefers-reduced-motion: reduce) { #game { box-shadow: 0 0 0 3px #2e1c11; } }
+
+/* On a phone the game fills the glass, so drop the cabinet frame. */
+@media (pointer: coarse) {
+  #game { box-shadow: none; cursor: none; }
+  body { background: #000; }
+}

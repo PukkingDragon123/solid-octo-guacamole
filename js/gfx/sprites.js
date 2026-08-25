@@ -62,10 +62,11 @@ export function dirtTile(variant) {
   });
 }
 
-export function rockTile(variant) {
-  return sprite(`rock${variant}`, T, T, (ctx) => {
+export function rockTile(variant, dry = false) {
+  return sprite(`rock${variant}${dry ? 'D' : ''}`, T, T, (ctx) => {
     const rng = rngFrom(3000 + variant * 53);
-    ctx.drawImage(grassTile(variant & 1), 0, 0);
+    // plain grass underneath, matching the ground around it
+    ctx.drawImage(grassTile(0, dry), 0, 0);
     const boulder = (cx, cy, r) => {
       disc(ctx, cx, cy + 1, r, PAL.stone0);
       disc(ctx, cx, cy, r, PAL.stone1);
@@ -152,49 +153,236 @@ export function damTile() {
 }
 
 // ------------------------------------------------------------------ trees
-/**
- * A tree drawn as a trunk plus three overlapping leaf clumps, with the shape
- * and shading picked from the seed so no two stands look alike.
- */
-export function treeSprite(variant, stage) {
-  const key = `tree${variant}s${stage}`;
-  const w = 20, h = 26;
+// Six species, each grown from a seed: trunk with bark and roots, real branch
+// lines, a four-tone canopy and a broken leafy edge. Grown trees come in three
+// sway frames — only the canopy moves, so the trunk stays planted.
+
+const SPECIES = [
+  { id: 'oak',    leaves: [PAL.leaf0, PAL.leaf1, PAL.leaf2, PAL.leaf3], bark: [PAL.wood0, PAL.wood1, PAL.wood2] },
+  { id: 'pine',   leaves: ['#173a20', PAL.leaf0, PAL.leaf1, PAL.leaf2], bark: [PAL.wood0, PAL.wood1, '#6b4526'] },
+  { id: 'birch',  leaves: [PAL.leaf1, PAL.leaf2, PAL.grass3, PAL.grass4], bark: ['#8f8b80', '#c9c4b6', '#eae5d8'] },
+  { id: 'willow', leaves: [PAL.leaf1, '#4f8f3e', PAL.grass3, PAL.dry4], bark: [PAL.wood0, PAL.wood1, PAL.wood2] },
+  { id: 'maple',  leaves: ['#7a3a18', '#a8541f', '#d2802c', PAL.gold2], bark: [PAL.wood0, PAL.wood1, PAL.wood3] },
+  { id: 'bushy',  leaves: [PAL.leaf0, PAL.leaf1, PAL.grass2, PAL.grass4], bark: [PAL.wood0, PAL.wood1, PAL.wood2] },
+];
+
+export const TREE_SPECIES = SPECIES.length;
+
+function trunkAndRoots(ctx, cx, baseY, height, width, bark, rng) {
+  // roots flaring into the ground
+  for (const dir of [-1, 1]) {
+    const spread = width >= 3 ? 3 : 2;
+    for (let i = 1; i <= spread; i++) {
+      px(ctx, cx + dir * i, baseY - Math.max(0, i - 2), bark[0]);
+      if (i < spread) px(ctx, cx + dir * i, baseY - 1, bark[1]);
+    }
+  }
+  rect(ctx, cx - (width >> 1), baseY - height, width, height, bark[1]);
+  rect(ctx, cx - (width >> 1), baseY - height, 1, height, bark[2]);          // lit edge
+  rect(ctx, cx + (width >> 1) - (width > 2 ? 0 : 0), baseY - height, 1, height, bark[0]); // shaded edge
+  // bark texture
+  for (let i = 0; i < height - 2; i += 2) {
+    if (rng() < 0.55) px(ctx, cx - (width >> 1) + 1 + ((rng() * Math.max(1, width - 2)) | 0), baseY - height + 1 + i, bark[0]);
+  }
+}
+
+function branch(ctx, x0, y0, x1, y1, color) {
+  line(ctx, x0, y0, x1, y1, color);
+}
+
+/** Ragged edge: scatter leaf pixels just outside the canopy silhouette. */
+function leafFringe(ctx, rng, cx, cy, spread, count, color) {
+  for (let i = 0; i < count; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = spread * (0.75 + rng() * 0.35);
+    px(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.8), color);
+  }
+}
+
+export function treeSprite(variant, stage, sway = 1) {
+  const spec = SPECIES[variant % SPECIES.length];
+  const key = `tree${spec.id}s${stage}w${sway}`;
+  const w = 28, h = 36;
   return sprite(key, w, h, (ctx) => {
-    const rng = rngFrom(hashString(key));
-    const leaves = LEAF_SETS[variant % LEAF_SETS.length];
-    const scale = stage; // 0..1
-    const trunkH = Math.round(4 + 6 * scale);
-    const cx = w / 2;
-    const baseY = h - 2;
+    const rng = rngFrom(hashString(`${spec.id}${stage}`));
+    const scale = stage;                       // 0..1
+    const cx = w >> 1;
+    const baseY = h - 3;
+    const lean = (sway - 1);                   // -1, 0, +1 canopy drift
+    const [d0, d1, d2, d3] = spec.leaves;
 
-    // trunk
-    const tw = scale > 0.7 ? 3 : 2;
-    rect(ctx, cx - (tw >> 1) - 1, baseY - trunkH, tw, trunkH, PAL.wood1);
-    rect(ctx, cx - (tw >> 1) - 1, baseY - trunkH, 1, trunkH, PAL.wood2);
-    if (scale > 0.8) {
-      px(ctx, cx - 2, baseY - trunkH + 3, PAL.wood0);
-      px(ctx, cx, baseY - trunkH + 5, PAL.wood0);
+    const trunkH = Math.round(6 + 8 * scale);
+    const trunkW = scale > 0.7 ? 3 : 2;
+    trunkAndRoots(ctx, cx, baseY, trunkH, trunkW, spec.bark, rng);
+
+    const topY = baseY - trunkH;
+
+    if (spec.id === 'pine') {
+      // conical tiers with needle strokes along each edge
+      const tiers = scale > 0.7 ? 5 : 3;
+      const rise = Math.min(scale > 0.7 ? 4.2 : 3, (topY - 2) / Math.max(1, tiers - 1));
+      for (let i = 0; i < tiers; i++) {
+        const t = i / (tiers - 1);
+        const y = topY + 2 - Math.round(i * rise);
+        const half = Math.round((9 - i * 1.6) * scale) + 1;
+        const drift = Math.round(lean * t * 1.6);
+        for (let k = 0; k <= half; k++) {
+          const hh = Math.round((1 - k / (half + 1)) * 4) + 1;
+          rect(ctx, cx + drift - k, y - hh, 1, hh + 2, k > half - 2 ? d0 : d1);
+          rect(ctx, cx + drift + k, y - hh, 1, hh + 2, k > half - 2 ? d0 : d1);
+        }
+        rect(ctx, cx + drift - half + 1, y - 1, half * 2 - 1, 2, d1);
+        rect(ctx, cx + drift - Math.round(half * 0.5), y - 3, Math.round(half * 0.8), 2, d2);
+        px(ctx, cx + drift - Math.round(half * 0.5), y - 3, d3);
+      }
+      px(ctx, cx + Math.round(lean * 2), Math.max(0, topY + 1 - Math.round(rise * tiers)), d2);
+    } else if (spec.id === 'willow') {
+      const r = Math.round(4 + 5 * scale);
+      const cy = Math.max(r + 1, topY + 2 - r);
+      disc(ctx, cx + lean, cy, r, d0);
+      disc(ctx, cx + lean - 1, cy - 1, r - 1, d1);
+      disc(ctx, cx + lean - 2, cy - 2, Math.max(1, r - 4), d2);
+      // drooping strands
+      for (let i = -r + 1; i < r; i += 2) {
+        const len = Math.round((r - Math.abs(i) * 0.55) * (0.8 + rng() * 0.6));
+        for (let k = 0; k < len; k++) {
+          const drift = Math.round((k / len) * lean * 2);
+          px(ctx, cx + lean + i + drift, cy + 2 + k, k > len - 3 ? d3 : (k % 3 ? d1 : d0));
+        }
+      }
+      leafFringe(ctx, rng, cx + lean, cy, r, 10, d3);
+    } else {
+      // broadleaf: branches first, then overlapping clumps. The canopy is sized
+      // to the headroom above the trunk so nothing gets clipped by the sprite.
+      const r = Math.round((spec.id === 'bushy' ? 5 : 4) + 5 * scale);
+      const cy = Math.max(r + 1, topY + 2 - r);
+      if (scale > 0.7) {
+        branch(ctx, cx, topY + 3, cx - r + 3 + lean, cy + 2, spec.bark[0]);
+        branch(ctx, cx, topY + 5, cx + r - 3 + lean, cy + 3, spec.bark[0]);
+        branch(ctx, cx, topY + 1, cx + 1 + lean, cy - 2, spec.bark[1]);
+      }
+      const clumps = spec.id === 'bushy'
+        ? [[0, 0, r], [-r + 2, 2, r - 2], [r - 2, 2, r - 2], [-2, -r + 4, r - 4], [3, -r + 5, r - 4]]
+        : [[0, 0, r], [-r + 3, 1, r - 2], [r - 3, 1, r - 2], [0, -r + 4, r - 4]];
+      for (const [dx, dy, rr] of clumps) disc(ctx, cx + dx + lean, cy + dy, rr, d0);
+      for (const [dx, dy, rr] of clumps) disc(ctx, cx + dx + lean, cy + dy - 1, Math.max(1, rr - 1), d1);
+      for (const [dx, dy, rr] of clumps) disc(ctx, cx + dx + lean - 1, cy + dy - 2, Math.max(1, rr - 3), d2);
+      // sun catch, top-left
+      disc(ctx, cx - Math.round(r * 0.45) + lean, cy - Math.round(r * 0.5), Math.max(1, Math.round(r * 0.35)), d3);
+      // interior shading under the clumps
+      for (let i = 0; i < 5 * scale; i++) {
+        px(ctx, cx + lean - 3 + ((rng() * 7) | 0), cy + Math.round(r * 0.5) + ((rng() * 3) | 0), d0);
+      }
+      leafFringe(ctx, rng, cx + lean, cy, r + 1, Math.round(16 * scale), d2);
+      leafFringe(ctx, rng, cx + lean, cy, r + 2, Math.round(7 * scale), d1);
+      if (spec.id === 'birch') {
+        // black dashes on the pale trunk
+        for (let i = 2; i < trunkH; i += 3) {
+          px(ctx, cx - 1, baseY - i, PAL.ink);
+          if (rng() < 0.4) px(ctx, cx + 1, baseY - i - 1, PAL.ink);
+        }
+      }
+      if (spec.id === 'maple' && scale > 0.7) {
+        // a couple of leaves already on their way down
+        px(ctx, cx + r - 1 + lean, cy + r, d2);
+        px(ctx, cx - r + 2 + lean, cy + r + 3, d3);
+      }
     }
 
-    // canopy clumps
-    const r = Math.round(3 + 4.5 * scale);
-    const top = baseY - trunkH - r + 1;
-    const clumps = variant % 3 === 1
-      ? [[0, -r + 1, r], [-r + 2, 1, r - 1], [r - 2, 0, r - 1]]   // tall
-      : variant % 3 === 2
-        ? [[-r + 2, 0, r - 1], [r - 2, 1, r - 1], [0, -1, r]]     // wide
-        : [[0, 0, r], [-r + 2, 2, r - 2], [r - 2, 2, r - 2]];     // round
-
-    for (const [dx, dy, rr] of clumps) disc(ctx, cx - 1 + dx, top + dy, rr, leaves[0]);
-    for (const [dx, dy, rr] of clumps) disc(ctx, cx - 1 + dx, top + dy - 1, Math.max(1, rr - 1), leaves[1]);
-    for (const [dx, dy, rr] of clumps) disc(ctx, cx - 2 + dx, top + dy - 2, Math.max(1, rr - 2), leaves[2]);
-    // sun catch
-    disc(ctx, cx - 3, top - 2, Math.max(1, Math.round(r * 0.4)), leaves[3]);
-    for (let i = 0; i < 6 * scale; i++) {
-      px(ctx, cx - 5 + ((rng() * 10) | 0), top - 4 + ((rng() * 8) | 0), leaves[3]);
-    }
     outline(ctx, w, h, PAL.ink);
-    shadowUnder(ctx, cx - 1, baseY, Math.round(3 + 3 * scale), 2, 0.26);
+    shadowUnder(ctx, cx, baseY + 1, Math.round(4 + 5 * scale), 2, 0.26);
+  });
+}
+
+// -------------------------------------------------------------- undergrowth
+// Scattered detail that makes the forest floor look lived in. None of it is
+// interactive; it is there to be looked at.
+const CLUTTER_ART = {
+  mushroom: (ctx, rng, tint) => {
+    const caps = [[5, 11, 3], [10, 12, 2], [7, 13, 2]];
+    for (const [mx, my, r] of caps) {
+      rect(ctx, mx - 1, my - 1, 2, 3, PAL.paper2);           // stalk
+      disc(ctx, mx, my - 2, r, tint);
+      disc(ctx, mx, my - 3, Math.max(1, r - 1), tint);
+      px(ctx, mx - 1, my - 3, PAL.white);
+      px(ctx, mx + 1, my - 2, PAL.white);
+      rect(ctx, mx - r, my - 1, r * 2 + 1, 1, PAL.paper3);
+    }
+  },
+  fern: (ctx, rng) => {
+    for (const [fx, len, dir] of [[4, 8, -1], [8, 10, 0], [12, 7, 1]]) {
+      for (let i = 0; i < len; i++) {
+        const x = fx + Math.round(dir * i * 0.35);
+        const y = 14 - i;
+        px(ctx, x, y, i > len - 3 ? PAL.grass3 : PAL.leaf2);
+        if (i % 2 === 0 && i > 1) {
+          px(ctx, x - 1 - (i >> 2), y, PAL.leaf1);
+          px(ctx, x + 1 + (i >> 2), y, PAL.leaf1);
+        }
+      }
+    }
+  },
+  tallgrass: (ctx, rng) => {
+    for (let i = 0; i < 7; i++) {
+      const x = 2 + i * 2;
+      const len = 4 + ((rng() * 6) | 0);
+      const bend = rng() < 0.5 ? 1 : -1;
+      for (let k = 0; k < len; k++) {
+        px(ctx, x + (k > len - 3 ? bend : 0), 14 - k, k > len - 3 ? PAL.grass4 : PAL.grass2);
+      }
+    }
+  },
+  log: (ctx, rng) => {
+    rect(ctx, 1, 9, 14, 5, PAL.wood1);
+    rect(ctx, 1, 9, 14, 2, PAL.wood2);
+    rect(ctx, 1, 13, 14, 1, PAL.wood0);
+    disc(ctx, 2, 11, 2, PAL.wood3);
+    px(ctx, 2, 11, PAL.wood1);
+    for (let i = 4; i < 14; i += 4) px(ctx, i, 11, PAL.wood0);
+    px(ctx, 6, 8, PAL.grass2); px(ctx, 7, 8, PAL.grass3);   // moss on top
+    px(ctx, 11, 8, PAL.grass2);
+  },
+  stone: (ctx, rng) => {
+    disc(ctx, 6, 12, 3, PAL.stone1);
+    disc(ctx, 5, 11, 2, PAL.stone2);
+    px(ctx, 4, 10, PAL.stone3);
+    disc(ctx, 11, 13, 2, PAL.stone1);
+    px(ctx, 10, 12, PAL.stone2);
+  },
+  flowers: (ctx, rng, tint) => {
+    for (let i = 0; i < 5; i++) {
+      const x = 2 + ((rng() * 12) | 0);
+      const y = 10 + ((rng() * 4) | 0);
+      px(ctx, x, y + 1, PAL.grass2);
+      px(ctx, x, y, tint);
+      px(ctx, x - 1, y, tint); px(ctx, x + 1, y, tint);
+      px(ctx, x, y - 1, tint);
+      px(ctx, x, y, PAL.white);
+    }
+  },
+  lilypad: (ctx, rng) => {
+    disc(ctx, 6, 11, 4, PAL.leaf2);
+    disc(ctx, 6, 10, 3, PAL.leaf3);
+    rect(ctx, 6, 11, 4, 1, PAL.leaf1);
+    disc(ctx, 12, 13, 2, PAL.leaf2);
+    px(ctx, 5, 8, PAL.white); px(ctx, 6, 8, PAL.pink);      // a flower on the pad
+  },
+};
+
+const CLUTTER_TINTS = {
+  mushroom: [PAL.red, PAL.red2, '#b06a3a', PAL.paper3],
+  flowers: [PAL.pink, PAL.gold2, PAL.white, PAL.purple2, PAL.blue2],
+};
+
+export const CLUTTER_KINDS = ['mushroom', 'fern', 'tallgrass', 'log', 'stone', 'flowers'];
+
+export function clutterSprite(kind, variant) {
+  return sprite(`cl${kind}${variant}`, 16, 16, (ctx) => {
+    const rng = rngFrom(hashString(`${kind}${variant}`));
+    const tints = CLUTTER_TINTS[kind];
+    const tint = tints ? tints[variant % tints.length] : PAL.grass3;
+    (CLUTTER_ART[kind] || CLUTTER_ART.stone)(ctx, rng, tint);
+    outline(ctx, 16, 16, PAL.ink);
   });
 }
 
@@ -289,14 +477,16 @@ export function reedSprite() {
 }
 
 export function saplingSprite() {
-  return sprite('sapling', 12, 12, (ctx) => {
-    rect(ctx, 4, 10, 5, 1, 'rgba(0,0,0,0.2)');
-    rect(ctx, 6, 6, 1, 5, PAL.wood2);
-    disc(ctx, 6, 5, 2, PAL.leaf2);
-    px(ctx, 5, 4, PAL.leaf3);
-    px(ctx, 8, 6, PAL.leaf1);
-    px(ctx, 4, 7, PAL.leaf1);
-    outline(ctx, 12, 12, PAL.ink);
+  return sprite('sapling', 12, 14, (ctx) => {
+    rect(ctx, 6, 7, 1, 5, PAL.wood2);
+    px(ctx, 5, 11, PAL.wood1); px(ctx, 7, 11, PAL.wood1);
+    disc(ctx, 6, 5, 2, PAL.leaf1);
+    disc(ctx, 6, 4, 2, PAL.leaf2);
+    px(ctx, 5, 3, PAL.leaf3);
+    px(ctx, 9, 7, PAL.leaf2); px(ctx, 8, 8, PAL.leaf1);
+    px(ctx, 3, 8, PAL.leaf2); px(ctx, 4, 9, PAL.leaf1);
+    outline(ctx, 12, 14, PAL.ink);
+    shadowUnder(ctx, 6, 12, 4, 1, 0.24);
   });
 }
 
@@ -435,6 +625,44 @@ const ANIMAL_ART = {
     disc(ctx, 6, 2, 1, PAL.grass3);
     px(ctx, 5, 2, PAL.ink); px(ctx, 7, 2, PAL.ink);
   },
+  squirrel: (ctx) => {
+    // bushy tail curled up behind
+    disc(ctx, 3, 5, 3, '#8a3f14');
+    disc(ctx, 3, 4, 2, '#a8541f');
+    px(ctx, 2, 2, '#a8541f'); px(ctx, 3, 2, '#c9682a');
+    disc(ctx, 7, 8, 3, '#a8541f');
+    disc(ctx, 7, 7, 2, '#c9682a');
+    disc(ctx, 8, 4, 2, '#a8541f');
+    px(ctx, 7, 3, '#8a3f14'); px(ctx, 9, 3, '#8a3f14');   // ears
+    px(ctx, 7, 4, PAL.ink); px(ctx, 9, 4, PAL.ink);
+    px(ctx, 8, 5, PAL.paper2);
+    px(ctx, 6, 10, '#8a3f14'); px(ctx, 9, 10, '#8a3f14');
+    px(ctx, 10, 7, PAL.wood2); px(ctx, 11, 7, PAL.wood3);  // a nut
+  },
+  bee: (ctx) => {
+    ctx.globalAlpha = 0.75;
+    disc(ctx, 3, 4, 2, PAL.paper);
+    disc(ctx, 9, 4, 2, PAL.paper);
+    ctx.globalAlpha = 1;
+    disc(ctx, 6, 7, 4, PAL.gold);
+    rect(ctx, 3, 6, 7, 1, PAL.ink);
+    rect(ctx, 3, 8, 7, 1, PAL.ink);
+    disc(ctx, 6, 4, 2, PAL.ink2);
+    px(ctx, 5, 4, PAL.white); px(ctx, 7, 4, PAL.white);
+    px(ctx, 5, 2, PAL.ink); px(ctx, 7, 2, PAL.ink);       // antennae
+    px(ctx, 6, 11, PAL.ink);
+  },
+  kingfisher: (ctx) => {
+    disc(ctx, 6, 7, 3, '#1d5b8d');
+    disc(ctx, 6, 6, 2, '#2f83b8');
+    px(ctx, 5, 9, '#c9682a'); px(ctx, 6, 9, '#c9682a'); px(ctx, 7, 9, '#c9682a');
+    disc(ctx, 6, 3, 2, '#2f83b8');
+    px(ctx, 5, 2, '#4fa9d8'); px(ctx, 7, 2, '#4fa9d8');
+    px(ctx, 5, 3, PAL.ink); px(ctx, 7, 3, PAL.ink);
+    rect(ctx, 6, 0, 1, 3, PAL.ink2);                       // long beak
+    px(ctx, 3, 6, '#4fa9d8'); px(ctx, 9, 6, '#4fa9d8');
+    px(ctx, 6, 10, PAL.gold);
+  },
   dragonfly: (ctx) => {
     disc(ctx, 6, 6, 1, PAL.water3);
     rect(ctx, 6, 5, 1, 6, PAL.water2);
@@ -516,6 +744,62 @@ export function shadowSprite(w) {
   });
 }
 
+// ---------------------------------------------------------------- critters
+// Small living things that do nothing but make the valley feel inhabited.
+
+export function butterflySprite(tint, frame) {
+  return sprite(`bfly${tint}${frame}`, 7, 6, (ctx) => {
+    const open = frame === 0;
+    px(ctx, 3, 2, PAL.ink); px(ctx, 3, 3, PAL.ink);
+    px(ctx, 2, 1, PAL.ink); px(ctx, 4, 1, PAL.ink);
+    if (open) {
+      disc(ctx, 1, 2, 1, tint); disc(ctx, 5, 2, 1, tint);
+      px(ctx, 1, 4, tint); px(ctx, 5, 4, tint);
+      px(ctx, 1, 1, PAL.white); px(ctx, 5, 1, PAL.white);
+    } else {
+      px(ctx, 2, 2, tint); px(ctx, 4, 2, tint);
+      px(ctx, 2, 3, tint); px(ctx, 4, 3, tint);
+    }
+  });
+}
+
+export function fireflySprite(bright) {
+  return sprite(`ffly${bright ? 1 : 0}`, 5, 5, (ctx) => {
+    if (bright) {
+      disc(ctx, 2, 2, 2, 'rgba(247,204,85,0.35)');
+      px(ctx, 2, 2, PAL.gold2);
+      px(ctx, 1, 2, '#fff6c8'); px(ctx, 3, 2, '#fff6c8');
+      px(ctx, 2, 1, '#fff6c8'); px(ctx, 2, 3, '#fff6c8');
+    } else {
+      px(ctx, 2, 2, PAL.gold);
+    }
+  });
+}
+
+export function fishSprite(frame) {
+  return sprite(`fish${frame}`, 9, 5, (ctx) => {
+    const tail = frame === 0 ? 0 : 1;
+    ctx.globalAlpha = 0.55;
+    rect(ctx, 2, 1, 5, 3, PAL.water0);
+    px(ctx, 7, 1 + tail, PAL.water0); px(ctx, 7, 3 - tail, PAL.water0);
+    px(ctx, 1, 2, PAL.water0);
+    ctx.globalAlpha = 1;
+    px(ctx, 2, 2, PAL.water4);
+  });
+}
+
+export function flyingBirdSprite(frame) {
+  return sprite(`fbird${frame}`, 9, 6, (ctx) => {
+    const lift = [0, 1, 2, 1][frame % 4];
+    px(ctx, 4, 3, PAL.ink); px(ctx, 4, 2, PAL.ink);
+    for (let i = 1; i <= 3; i++) {
+      px(ctx, 4 - i, 3 - Math.round((i / 3) * lift), PAL.ink);
+      px(ctx, 4 + i, 3 - Math.round((i / 3) * lift), PAL.ink);
+    }
+    px(ctx, 1, 3 - lift, PAL.ink2); px(ctx, 7, 3 - lift, PAL.ink2);
+  });
+}
+
 // ------------------------------------------------------------- structures
 const STRUCTURE_ART = {
   duck_nest: (ctx) => {
@@ -588,6 +872,44 @@ const STRUCTURE_ART = {
     rect(ctx, 2, 13, 12, 1, PAL.wood1);
     rect(ctx, 3, 14, 1, 2, PAL.wood0);
     rect(ctx, 12, 14, 1, 2, PAL.wood0);
+  },
+  squirrel_drey: (ctx) => {
+    disc(ctx, 8, 9, 6, PAL.wood1);
+    disc(ctx, 8, 8, 5, PAL.wood2);
+    // twigs poking out in every direction
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      line(ctx, 8 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, 8 + Math.cos(a) * 7, 8 + Math.sin(a) * 6,
+           i % 2 ? PAL.wood1 : PAL.wood3);
+    }
+    disc(ctx, 8, 8, 3, PAL.leaf1);
+    disc(ctx, 7, 7, 2, PAL.leaf2);
+    px(ctx, 10, 10, PAL.ink);
+    px(ctx, 5, 4, PAL.leaf3); px(ctx, 11, 5, PAL.leaf3);
+  },
+  bee_hive: (ctx) => {
+    // a coiled straw skep
+    for (let i = 0; i < 5; i++) {
+      const w = 12 - i * 2;
+      const y = 13 - i * 2;
+      rect(ctx, 8 - (w >> 1), y, w, 2, i % 2 ? PAL.gold : '#c98a2a');
+      rect(ctx, 8 - (w >> 1), y, w, 1, PAL.gold2);
+    }
+    disc(ctx, 8, 3, 2, PAL.gold);
+    rect(ctx, 6, 12, 4, 3, PAL.ink);                     // doorway
+    disc(ctx, 8, 13, 1, PAL.black);
+    px(ctx, 3, 6, PAL.ink); px(ctx, 12, 8, PAL.ink);     // bees about
+    px(ctx, 2, 5, PAL.gold2); px(ctx, 13, 7, PAL.gold2);
+  },
+  kingfisher_post: (ctx) => {
+    rect(ctx, 7, 4, 3, 12, PAL.wood1);
+    rect(ctx, 7, 4, 1, 12, PAL.wood2);
+    rect(ctx, 3, 4, 11, 2, PAL.wood2);                   // crossbar
+    rect(ctx, 3, 4, 11, 1, PAL.wood3);
+    line(ctx, 5, 6, 8, 9, PAL.wood1);
+    line(ctx, 12, 6, 9, 9, PAL.wood1);
+    px(ctx, 4, 3, PAL.water3); px(ctx, 13, 3, PAL.water3);
+    px(ctx, 11, 11, PAL.stone3); px(ctx, 12, 12, PAL.stone2);
   },
   lodge: (ctx) => {
     rect(ctx, 1, 17, 22, 3, 'rgba(0,0,0,0.25)');

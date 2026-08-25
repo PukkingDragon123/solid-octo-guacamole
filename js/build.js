@@ -2,7 +2,7 @@
 
 import { BLUEPRINTS, PLANT_IDS } from './config.js';
 import { G, tileAt, entityAt, addEntity, removeEntity, spend, canAfford, gain, toast, missingLabel } from './state.js';
-import { refreshWater, isWet, makeTree } from './world.js';
+import { refreshWater, isWet, makeTree, clearClutter } from './world.js';
 import { addJob, removeJobFor, jobFor } from './jobs.js';
 
 /** Why a blueprint may or may not go on this tile. */
@@ -31,6 +31,7 @@ export function placeSite(bpId, x, y) {
   if (!check.ok) { toast(check.reason, 'warn'); return null; }
   const bp = BLUEPRINTS[bpId];
   spend(bp.cost);
+  clearClutter(x, y);
   const site = addEntity({
     kind: 'site', blueprint: bpId, x, y,
     work: bp.work, workDone: 0, pulse: 0,

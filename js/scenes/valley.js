@@ -10,6 +10,7 @@ import { animalDef, needStatus } from '../animals.js';
 import { ripeness } from '../plants.js';
 import { capacity } from '../beavers.js';
 import { canPlace } from '../build.js';
+import { drawCritters, drawFlock } from '../critters.js';
 
 let ground = null;         // pre-rendered land, blitted in one go each frame
 let groundDirty = true;
@@ -27,7 +28,7 @@ export function buildGround() {
       // most of the meadow is plain; flowers and worn patches stay rare
       const v = tile.v < 0.52 ? 0 : tile.v < 0.8 ? 1 : tile.v < 0.92 ? 2 : 3;
       let img;
-      if (tile.t === 'rock') img = S.rockTile(Math.floor(tile.v * 4) % 4);
+      if (tile.t === 'rock') img = S.rockTile(Math.floor(tile.v * 4) % 4, tile.elev >= 4);
       else if (tile.t === 'dirt') img = S.dirtTile(v & 1);
       else img = S.grassTile(v, tile.elev >= 4);   // high ground dries out
       ctx.drawImage(img, x * TILE, y * TILE);
@@ -86,6 +87,13 @@ export function drawValley(ctx, t, view) {
     }
   }
 
+  // --- undergrowth lies flat on the ground, under everything else
+  for (const c of G.clutter) {
+    const wx = c.x * TILE, wy = c.y * TILE;
+    if (wx < cam.x - TILE || wx > cam.x + VIEW_W || wy < cam.y - TILE || wy > cam.y + VIEW_H) continue;
+    ctx.drawImage(S.clutterSprite(c.kind, c.variant), cam.sx(wx), cam.sy(wy));
+  }
+
   // --- contract circles sit under everything else
   for (const request of G.requests) drawRequestRing(ctx, request, t);
 
@@ -113,8 +121,11 @@ export function drawValley(ctx, t, view) {
     else drawEntity(ctx, item.e, t);
   }
 
+  drawCritters(ctx, t);
+
   // --- contract pins float above the scene
   for (const request of G.requests) drawRequestPin(ctx, request, t);
+  drawFlock(ctx, t);
 }
 
 function drawEntity(ctx, e, t) {
@@ -124,15 +135,21 @@ function drawEntity(ctx, e, t) {
   if (e.kind === 'tree') {
     if (e.growth < 0.35) { ctx.drawImage(S.saplingSprite(), sx + 2, sy + 4); return; }
     const stage = e.growth >= 1 ? 1 : 0.45;
-    const img = S.treeSprite(e.variant % 3, stage);
-    const sway = Math.round(Math.sin(t * 1.3 + e.sway) * (e.growth >= 1 ? 1 : 0));
+    // the canopy leans with the wind while the trunk stays put
+    const wind = Math.sin(t * 1.15 + e.sway) + Math.sin(t * 0.41 + e.sway * 2) * 0.4;
+    const swayFrame = e.growth >= 1 ? Math.max(0, Math.min(2, Math.round(wind) + 1)) : 1;
+    const img = S.treeSprite(e.variant % S.TREE_SPECIES, stage, swayFrame);
     const shake = e.shake > 0 ? (Math.floor(t * 30) % 2 ? 1 : -1) : 0;
-    ctx.drawImage(img, sx - 2 + sway + shake, sy + TILE - img.height + 2);
+    const treeTop = sy + TILE - img.height + 2;
+    ctx.drawImage(img, sx - ((img.width - TILE) >> 1) + shake, treeTop);
     if (e.marked && e.growth >= 1) {
+      // the axe floats clear above the canopy, whatever species this is
       const axe = S.icon('axe');
       const bob = Math.round(Math.sin(t * 4 + e.x) * 1.5);
-      ctx.drawImage(axe, sx + 4, sy - img.height + 12 + bob);
-      rect(ctx, sx + 3, sy - img.height + 22 + bob, 11, 1, PAL.red2);
+      const my = treeTop - 10 + bob;
+      rect(ctx, sx + 2, my + 1, 11, 9, 'rgba(20,15,10,0.5)');
+      ctx.drawImage(axe, sx + 3, my);
+      rect(ctx, sx + 2, my + 10, 11, 1, PAL.red2);
     }
     if (e.growth >= 1 && e.wood < 13) {
       const w = Math.max(1, Math.round((e.wood / 20) * 12));

@@ -9,9 +9,11 @@ Every pixel — terrain, beavers, the heron, the interface, the font — is
 generated procedurally at load time. There are no image files, no build step and
 no dependencies.
 
+![Title screen: a beaver at sunset on a rock, looking out at its dam](screenshot-title.png)
+
 ![The camp, seen side-on, with the dam visible across the pond behind it](screenshot-camp.png)
 
-![The valley from the back of the heron, with the pond risen behind the dam](screenshot-sky.png)
+![The valley from the back of the heron: mixed woodland, mushrooms, fallen logs and butterflies](screenshot-sky.png)
 
 ## Play it
 
@@ -24,7 +26,20 @@ python3 serve.py          # then open http://localhost:8000
 npx serve .
 ```
 
-It saves to `localStorage` automatically every 30 seconds and on exit.
+It saves to `localStorage` automatically every 30 seconds and on exit. The title
+screen offers **Continue** when a save is waiting.
+
+### On a phone
+
+The game is playable on a touchscreen, held sideways. Cute wooden buttons appear
+by themselves the moment it sees a finger: walk and jump in the camp, a flight
+pad and a tool-belt button in the air. Everything else is tapped directly —
+tap a tree to fell it, tap the ground to build, tap the job board to read it.
+Every on-screen button simply holds down the key it stands for, so touch and
+keyboard play are the same game. Held in portrait, it asks you to turn the phone
+round.
+
+![The camp on a phone, with the walk, jump and use buttons](screenshot-mobile.png)
 
 ## Two views
 
@@ -38,6 +53,9 @@ stand in front of and press <kbd>E</kbd> on:
 | Stores | The ledger — supplies, wage bill, valley report, residents, save |
 | Log pile | **Log Slam**, a timing mini-game that pays out timber and build progress |
 | Perch | The heron. Climb on to take off |
+
+The camp sits on the bank of the valley's own pond, so the dam you are building
+is visible on the horizon behind it, and the water rises there too.
 
 **The valley** is the bird's-eye view you get while flying. This is where the
 building happens: mark trees, lay dam segments, plant, and site habitats. The
@@ -85,16 +103,36 @@ you build shows up on the horizon back at camp.
 
 5. **Build the habitat.** Each animal picks a spot and shows a ring on the map.
    Everything on its wish-list has to sit inside that ring. Tick every box and
-   your new neighbour moves in with hearts, berries and seeds. House all eight
-   and the valley is complete.
+   your new neighbour moves in with hearts, berries and seeds. There are eleven
+   to house — duck, frog, rabbit, hedgehog, dragonfly, squirrel, songbird,
+   bumblebee, otter, pond turtle and kingfisher — and they knock roughly
+   easiest-first, so nobody asks for a deep-water holt on day two.
+
+Butterflies drift over the meadow, fish rise in the pond, fireflies come out
+after dusk and flocks cross overhead. None of it is part of the simulation; it
+is there so the valley is never still.
 
 ## How the art works
 
 There is no sprite sheet. `js/gfx/pixel.js` is a small toolkit — a fixed
-palette, offscreen surfaces, dithering, a 5×7 bitmap font, a 1px outline pass
-and a soft-shadow pass. `js/gfx/sprites.js` uses it to draw every sprite from a
-seed the first time it is asked for, then caches it. Change a number in there
-and the whole valley re-renders differently.
+palette, offscreen surfaces, dithering, a 5×7 bitmap font (scaled up for the
+title), a 1px outline pass, a soft-shadow pass and a rim-light pass that finds
+the edges of a silhouette facing the sun. `js/gfx/sprites.js` uses it to draw
+every sprite from a seed the first time it is asked for, then caches it. Change
+a number in there and the whole valley re-renders differently.
+
+The woodland is six species — oak, pine, birch, willow, maple and a bushy
+scrub — each with roots, bark, real branch lines and a four-tone canopy, and
+each grown tree is generated in three sway frames so the canopy moves in the
+wind while the trunk stays planted. Scattered underneath are mushrooms, ferns,
+fallen logs, tall grass, stones and wildflowers, thickest under the trees and
+sparse out in the meadow. It all drowns if you flood it, and lily pads drift in
+to take its place.
+
+The title screen is painted by the same toolkit: a dithered sunset ramp, three
+ridgelines, a wall of backlit logs with water pouring through a notch, a
+shimmering reflection column, and a rim-lit beaver watching it all. It is
+painted once into a buffer, so holding it on screen costs nothing.
 
 The game draws into a 480×270 buffer that is scaled up by a whole number to fit
 the window, so pixels stay square at any size.
@@ -117,16 +155,19 @@ js/plants.js        growth and ripening
 js/build.js         placement rules, build sites, demolition
 js/animals.js       contracts, need checking, residents
 js/player.js        walking in camp, flying on the heron
-js/input.js         keyboard and mouse, in view-space coordinates
+js/critters.js      butterflies, fireflies, fish and passing flocks
+js/input.js         keyboard, mouse and touch, in view-space coordinates
 js/minigame.js      Log Slam
 js/gfx/pixel.js     the pixel toolkit and the bitmap font
 js/gfx/sprites.js   every sprite, generated
 js/gfx/screen.js    the scaled canvas and the camera
+js/scenes/title.js  the sunset title screen
 js/scenes/camp.js   the side-scrolling camp
 js/scenes/valley.js the bird's-eye valley
 js/ui/widgets.js    immediate-mode pixel widgets
 js/ui/hud.js        resource strip, day chip, toasts, tool belt
 js/ui/board.js      the job board, bunkhouse and stores screens
+js/ui/touch.js      on-screen controls for phones
 js/main.js          bootstrap, game loop, the two modes
 ```
 

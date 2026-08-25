@@ -22,11 +22,12 @@ export function initScreen(canvas) {
 }
 
 export function resize() {
-  const pad = 8;
-  const scale = Math.max(1, Math.min(
-    Math.floor((window.innerWidth - pad) / VIEW_W),
-    Math.floor((window.innerHeight - pad) / VIEW_H),
-  ));
+  const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  const pad = touch ? 0 : 8;
+  const exact = Math.min((window.innerWidth - pad) / VIEW_W, (window.innerHeight - pad) / VIEW_H);
+  // Whole-number scaling keeps pixels square, but a phone screen is rarely a
+  // whole multiple of 480x270 — there, filling the glass matters more.
+  const scale = exact >= 2 ? Math.floor(exact) : Math.max(0.5, exact);
   screen.scale = scale;
   if (screen.canvas) {
     screen.canvas.style.width = `${VIEW_W * scale}px`;
