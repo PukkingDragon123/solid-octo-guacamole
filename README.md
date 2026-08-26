@@ -16,6 +16,14 @@ no dependencies.
 
 ![Title screen: a beaver at sunset on a rock, looking out at its dam](screenshot-title.png)
 
+![The opening cutscene: grandpa in his armchair, the television glowing, rain on the window](screenshot-cutscene.png)
+
+![Grandpa's workshop: the tool wall, the saw bench, and the hospital bill pinned by the phone](screenshot-workshop.png)
+
+![The timber out the back: a side-scrolling wood of tall trees leaning in the wind](screenshot-forest.png)
+
+![A customer's room from above: the weaver's loom, furniture fitted to the plan, a pane to reglaze](screenshot-site.png)
+
 ![The camp, seen side-on, with the dam visible across the pond behind it](screenshot-camp.png)
 
 ![The valley from the back of the heron: mixed woodland, mushrooms, fallen logs and butterflies](screenshot-sky.png)
