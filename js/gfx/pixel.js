@@ -104,12 +104,15 @@ export function ring(ctx, cx, cy, r, color) {
 export function line(ctx, x0, y0, x1, y1, color) {
   ctx.fillStyle = color;
   let x = x0 | 0, y = y0 | 0;
-  const dx = Math.abs(x1 - x), sx = x < x1 ? 1 : -1;
-  const dy = -Math.abs(y1 - y), sy = y < y1 ? 1 : -1;
+  // Both ends are snapped to whole pixels: a fractional endpoint would never
+  // satisfy the stop test below, and the line would run off across the screen.
+  const ex = x1 | 0, ey = y1 | 0;
+  const dx = Math.abs(ex - x), sx = x < ex ? 1 : -1;
+  const dy = -Math.abs(ey - y), sy = y < ey ? 1 : -1;
   let err = dx + dy;
   for (let guard = 0; guard < 4096; guard++) {
     ctx.fillRect(x, y, 1, 1);
-    if (x === (x1 | 0) && y === (y1 | 0)) break;
+    if (x === ex && y === ey) break;
     const e2 = 2 * err;
     if (e2 >= dy) { err += dy; x += sx; }
     if (e2 <= dx) { err += dx; y += sy; }

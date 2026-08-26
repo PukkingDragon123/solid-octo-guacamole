@@ -10,7 +10,11 @@ const WALK_MAX = 68;
 const FRICTION = 900;
 const JUMP_V = -168;
 
-export function updateCampPlayer(dt, locked) {
+/**
+ * Side-on walking, shared by the camp, the workshop and the forest - they only
+ * differ in how wide the room is and where the floor sits.
+ */
+export function updateSidePlayer(dt, locked, width = CAMP_W, ground = CAMP_GROUND) {
   const p = G.player;
   const left = !locked && held('ArrowLeft', 'KeyA');
   const right = !locked && held('ArrowRight', 'KeyD');
@@ -32,8 +36,12 @@ export function updateCampPlayer(dt, locked) {
   p.x += p.vx * dt;
   p.y += p.vy * dt;
 
-  if (p.y >= CAMP_GROUND) { p.y = CAMP_GROUND; p.vy = 0; p.onGround = true; }
-  p.x = Math.max(14, Math.min(CAMP_W - 14, p.x));
+  if (p.y >= ground) { p.y = ground; p.vy = 0; p.onGround = true; }
+  p.x = Math.max(14, Math.min(width - 14, p.x));
+}
+
+export function updateCampPlayer(dt, locked) {
+  updateSidePlayer(dt, locked, CAMP_W, CAMP_GROUND);
 }
 
 const FLY_ACCEL = 460;

@@ -20,13 +20,30 @@ import * as S from './gfx/sprites.js';
 
 import { drawValley, drawCursor, drawRider, invalidateGround, buildGround } from './scenes/valley.js';
 import { drawCamp, drawPlayer, nearestStation, CAMP_BOUNDS, STATIONS, skyPhase } from './scenes/camp.js';
-import { updateCampPlayer, updateRider, seatRider } from './player.js';
+import { updateCampPlayer, updateSidePlayer, updateRider, seatRider } from './player.js';
 import { drawResourceStrip, drawDayChip, drawToasts, drawHotbar, drawHint, PAGES } from './ui/hud.js';
 import { drawStation, openStation, closeStation } from './ui/board.js';
 import { keyPrompt, button, panel, scrim, hovering } from './ui/widgets.js';
 import { updateTouch, drawTouchControls, drawOrientationHint, touchUI } from './ui/touch.js';
 import { drawTitleScene, drawTitleText } from './scenes/title.js';
 import { mini, openMinigame, updateMinigame, drawMinigame, canPlay } from './minigame.js';
+
+// ---- the campaign: the story, the workshop, and everything it leads to
+import { story, freshStory, tutorialStep, tutorialDone, TUTORIAL, HOSPITAL_BILL } from './story.js';
+import { dailyOffers, makeOffer, pushOffer, NPCS, FURNITURE, outstanding } from './orders.js';
+import { runRobots } from './shop.js';
+import { cut, playCutscene, updateCutscene, drawCutscene } from './scenes/cutscene.js';
+import { drawWorkshop, drawWorkshopHud, nearestWorkStation, WORKSHOP_GROUND, WORKSHOP_BOUNDS }
+  from './scenes/workshop.js';
+import { forest, makeForest, growForest, updateForest, drawForest, drawForestHud, fell,
+         FOREST_GROUND, FOREST_BOUNDS } from './scenes/forest.js';
+import { travel, openMap, closeMap, updateTravel, drawMap, drawFlight, startFlight } from './scenes/travel.js';
+import { site, openSite, closeSite, updateSite, drawSite } from './scenes/site.js';
+import { phone, openPhone, closePhone, drawPhone } from './ui/phone.js';
+import { saw, openSaw, closeSaw, updateSaw, drawSaw, canSaw } from './minigames/saw.js';
+import { asm, openAssemble, closeAssemble, updateAssemble, drawAssemble } from './minigames/assemble.js';
+import { drawBuildMenu, buildMenu, openBuildMenu, closeBuildMenu } from './ui/buildmenu.js';
+import { unlockAudio, sfx } from './audio.js';
 
 const CREW_JOBS_KEYS = { logger: 1, hauler: 1, engineer: 1, gardener: 1, forager: 1 };
 const ANIMAL_KEYS = ['duck', 'frog', 'rabbit', 'hedgehog', 'songbird', 'otter', 'turtle',
@@ -73,10 +90,34 @@ function newGame() {
   G.beavers.push(makeBeaver('forager', G.lodge.x + 1, G.lodge.y));
   spawnRequest(true);
   seatRider();
+
+  // ---- the campaign starts in grandpa's workshop, the morning after the fall
+  G.story = freshStory();
+  G.forest = makeForest();
+  G.mode = 'workshop';
+  G.player = { x: 240, y: WORKSHOP_GROUND, vx: 0, vy: 0, onGround: true, face: 1 };
+  pushOffer(makeOffer('willow', {
+    pool: ['stool'], count: 1, repair: null,
+    text: 'WILLOW HERE - YOUR GRANDPA SAID YOU ARE TAKING WORK NOW. I NEED A STOOL.',
+  }));
   invalidateGround();
   seedCritters();
   seedCampCritters();
   logMsg('Welcome to the valley.', 'good');
+}
+
+/** The camera limits for whichever scene we are in. */
+function boundsFor(mode) {
+  if (mode === 'sky') return SKY_BOUNDS;
+  if (mode === 'workshop') return WORKSHOP_BOUNDS;
+  if (mode === 'forest') return FOREST_BOUNDS;
+  return CAMP_BOUNDS;
+}
+
+function groundFor(mode) {
+  if (mode === 'workshop') return WORKSHOP_GROUND;
+  if (mode === 'forest') return FOREST_GROUND;
+  return CAMP_GROUND;
 }
 
 /** Shared tail end of both "new valley" and "continue". */
@@ -89,7 +130,7 @@ function enterGame() {
   G.ui.hotbarPage = G.ui.hotbarPage || 0;
   cam.centreOn(G.mode === 'sky' ? G.rider.x : G.player.x,
                G.mode === 'sky' ? G.rider.y : VIEW_H / 2,
-               G.mode === 'sky' ? SKY_BOUNDS : CAMP_BOUNDS);
+               boundsFor(G.mode));
   screenMode = 'game';
   last = performance.now();
 }
@@ -97,7 +138,15 @@ function enterGame() {
 function startNewGame() {
   newGame();
   enterGame();
-  helpOpen = true;
+  screenMode = 'cutscene';
+  playCutscene('intro', () => {
+    screenMode = 'game';
+    const s = story();
+    s.seenIntro = true;
+    s.beat = 'tutorial';
+    s.chapter = 1;
+    helpOpen = true;
+  });
 }
 
 function continueGame() {
@@ -148,6 +197,9 @@ function simulate(dt) {
     G.day++;
     payday();
     spawnRequest();
+    dailyOffers();
+    runRobots();
+    growForest();
   }
   updatePlants(dt);
   updateBeavers(dt);
@@ -191,6 +243,64 @@ function landHome() {
     G.player.vx = 0; G.player.vy = 0;
     cam.centreOn(G.player.x, VIEW_H / 2, CAMP_BOUNDS);
   }, PAL.sky3);
+}
+
+/** Any campaign screen that should freeze the world behind it. */
+function campaignOverlay() {
+  return phone.open || saw.active || asm.active || buildMenu.open || travel.open || travel.flying;
+}
+
+/** Walk into a scene, with a wipe over the join. */
+function goMode(mode, colour) {
+  startFade(() => {
+    G.mode = mode;
+    G.ui.build = null;
+    const ground = groundFor(mode);
+    if (mode === 'workshop') G.player.x = travel.dest ? 700 : 240;
+    else if (mode === 'forest') G.player.x = 120;
+    else if (mode === 'camp') G.player.x = 352;
+    G.player.y = ground;
+    G.player.vx = 0; G.player.vy = 0; G.player.onGround = true;
+    if (mode !== 'site') cam.centreOn(G.player.x, VIEW_H / 2, boundsFor(mode));
+  }, colour || PAL.wood1);
+}
+
+/** The map table picked a site: fly out, then drop into it. */
+travel.onCamp = () => {
+  closeMap();
+  goMode('camp', PAL.grass1);
+  toast('THE OLD DAM CAMP. PRESS M TO GO BACK TO THE WORKSHOP.', 'info');
+};
+
+travel.onPick = (npcId) => {
+  openSite(npcId);
+  G.mode = 'site';
+  closeMap();
+};
+
+function leaveSite() {
+  closeSite();
+  goMode('workshop');
+  if (story().tutorial >= 0) tutorialDone('deliver');
+}
+
+function handleWorkshopInput() {
+  const station = nearestWorkStation(G.player.x);
+  if (!station || !pressed('KeyE')) return;
+  consume('KeyE');
+  if (station.id === 'phone') openPhone();
+  else if (station.id === 'saw') { if (openSaw()) tutorialDone('saw'); }
+  else if (station.id === 'bench') openBuildMenu();
+  else if (station.id === 'map') openMap();
+  else if (station.id === 'door') { goMode('forest', PAL.leaf1); tutorialDone('forest'); }
+}
+
+function handleForestInput() {
+  if (fell.phase !== 'idle') return;
+  if (Math.abs(G.player.x - 70) < 30 && pressed('KeyE')) {
+    consume('KeyE');
+    goMode('workshop');
+  }
 }
 
 // ------------------------------------------------------------------ input
@@ -267,6 +377,7 @@ function handleSkyInput() {
 }
 
 function handleCampInput() {
+  if (pressed('KeyM')) { consume('KeyM'); goMode('workshop'); return; }
   const station = nearestStation(G.player.x);
   if (station && pressed('KeyE')) {
     consume('KeyE');   // the screen we are about to open also listens for E
@@ -293,10 +404,18 @@ function step(now) {
 }
 
 function update(real) {
-  const overlayNow = helpOpen || mini.active || !!G.station || screenMode === 'title';
-  updateTouch(G.mode, overlayNow);
+  const overlayNow = helpOpen || mini.active || !!G.station || screenMode === 'title' || campaignOverlay();
+  updateTouch(G.mode === 'site' ? 'site' : G.mode, overlayNow);
   if (screenMode === 'title') { updateTitle(real); return; }
+  if (screenMode === 'cutscene') {
+    updateCutscene(real);
+    if (!cut.active) screenMode = 'game';
+    return;
+  }
   updateMinigame(real);
+  updateSaw(real);
+  updateAssemble(real);
+  updateTravel(real);
   tipTimer += real;
 
   if (fade.dur > 0) {
@@ -313,7 +432,7 @@ function update(real) {
     return;
   }
 
-  const overlay = helpOpen || mini.active || !!G.station;
+  const overlay = helpOpen || mini.active || !!G.station || campaignOverlay();
   const busy = overlay || fade.dur > 0;
 
   if (!overlay && pressed('KeyP')) G.paused = !G.paused;
@@ -323,7 +442,18 @@ function update(real) {
   const simDt = G.paused || overlay ? 0 : real * G.speed;
   if (simDt > 0) simulate(simDt);
 
-  if (G.mode === 'camp') {
+  if (G.mode === 'site') {
+    if (!overlay) updateSite(real);
+    if (!site.active) leaveSite();
+  } else if (G.mode === 'workshop') {
+    updateSidePlayer(real, busy, WORKSHOP_BOUNDS.w, WORKSHOP_GROUND);
+    cam.follow(G.player.x, VIEW_H / 2, real, WORKSHOP_BOUNDS, 8);
+    if (!busy) handleWorkshopInput();
+  } else if (G.mode === 'forest') {
+    updateForest(real, busy);
+    cam.follow(G.player.x, VIEW_H / 2, real, FOREST_BOUNDS, 8);
+    if (!busy) handleForestInput();
+  } else if (G.mode === 'camp') {
     updateCampCritters(real);
     updateCampPlayer(real, busy);
     cam.follow(G.player.x, VIEW_H / 2, real, CAMP_BOUNDS, 8);
@@ -346,7 +476,52 @@ function render(real) {
   if (drawOrientationHint(ctx)) return;
   if (screenMode === 'title') { renderTitle(real); drawTouchControls(ctx, performance.now() / 1000); return; }
   const t = G.time;
+  const wall = performance.now() / 1000;
   ctx.imageSmoothingEnabled = false;
+
+  if (screenMode === 'cutscene') {
+    drawCutscene(ctx, wall);
+    drawTouchControls(ctx, wall);
+    return;
+  }
+
+  if (travel.flying) {
+    drawFlight(ctx, wall);
+    drawTouchControls(ctx, wall);
+    return;
+  }
+
+  if (G.mode === 'site') {
+    drawSite(ctx, wall);
+    drawToasts(ctx, real, 30, false);
+    drawTouchControls(ctx, wall);
+    if (fade.dur > 0) drawFade(ctx);
+    return;
+  }
+
+  if (G.mode === 'workshop' || G.mode === 'forest') {
+    if (G.mode === 'workshop') {
+      drawWorkshop(ctx, wall);
+      drawPlayer(ctx, G.player, wall);
+      if (!campaignOverlay()) drawWorkshopHud(ctx, wall);
+    } else {
+      drawForest(ctx, wall);
+      drawPlayer(ctx, G.player, wall);
+      drawForestHud(ctx, wall);
+    }
+    drawCampaignHud(ctx, real);
+    if (phone.open) { if (!drawPhone(ctx, wall)) closePhone(); }
+    else if (buildMenu.open) {
+      const pick = drawBuildMenu(ctx, wall);
+      if (pick) { if (openAssemble(pick)) tutorialDone('craft'); }
+    } else if (saw.active) { if (!drawSaw(ctx, wall)) closeSaw(); }
+    else if (asm.active) { if (!drawAssemble(ctx, wall)) closeAssemble(); }
+    else if (travel.open) { if (!drawMap(ctx, wall)) closeMap(); }
+    if (helpOpen) drawHelp(ctx);
+    drawTouchControls(ctx, wall);
+    if (fade.dur > 0) drawFade(ctx);
+    return;
+  }
 
   if (G.mode === 'camp') {
     drawCamp(ctx, performance.now() / 1000);
@@ -386,7 +561,11 @@ function render(real) {
 
   drawTouchControls(ctx, performance.now() / 1000);
 
-  if (fade.dur > 0) {
+  if (fade.dur > 0) drawFade(ctx);
+}
+
+function drawFade(ctx) {
+  {
     const half = fade.dur / 2;
     const a = fade.t < half ? fade.t / half : 1 - (fade.t - half) / half;
     ctx.globalAlpha = Math.max(0, Math.min(1, a));
@@ -403,6 +582,37 @@ function render(real) {
 }
 
 function closeMinigame2() { mini.active = false; }
+
+/**
+ * The strip that follows you round the campaign: what you owe, what you have,
+ * and whatever grandpa is nudging you toward next.
+ */
+function drawCampaignHud(ctx, real) {
+  const s = story();
+  rect(ctx, 0, 0, VIEW_W, 13, 'rgba(13,10,9,0.66)');
+  text(ctx, `DAY ${G.day}`, 5, 3, PAL.paper3);
+  text(ctx, `${s.money} ACORNS`, 52, 3, PAL.gold2);
+  text(ctx, `BILL ${s.debt}`, 128, 3, s.debt > 0 ? PAL.red2 : PAL.grass4);
+  const mats = s.materials;
+  text(ctx, `LOGS ${mats.hardwood || 0}  PLANKS ${mats.plank || 0}  SCREWS ${mats.screw || 0}`,
+       VIEW_W - 5, 3, PAL.paper2, { align: 'right' });
+
+  const step = tutorialStep();
+  if (step) {
+    const w = 250, x = (VIEW_W - w) >> 1;
+    rect(ctx, x, 15, w, 12, 'rgba(21,14,40,0.78)');
+    frame(ctx, x, 15, w, 12, PAL.wood2);
+    text(ctx, step.tip, VIEW_W / 2, 18, PAL.gold2, { align: 'center' });
+  } else if (s.orders.length) {
+    const order = s.orders[0];
+    const need = outstanding(order);
+    const label = need.length
+      ? `BUILD ${FURNITURE[need[0]].name.toUpperCase()} FOR ${NPCS[order.npc].name.toUpperCase()}`
+      : `DELIVER TO ${NPCS[order.npc].name.toUpperCase()} - MAP TABLE`;
+    text(ctx, label, VIEW_W / 2, 17, PAL.paper3, { align: 'center', shadow: PAL.black });
+  }
+  drawToasts(ctx, real, 30, false);
+}
 
 /** Dusk and night wash over the valley too, so both views share a clock. */
 function nightWash(ctx) {
@@ -460,26 +670,28 @@ function renderTitle(real) {
 // ------------------------------------------------------------------- help
 function drawHelp(ctx) {
   scrim(ctx, VIEW_W, VIEW_H, 0.68);
-  const w = 300, h = 176;
+  const w = 300, h = 186;
   const x = (VIEW_W - w) >> 1, y = (VIEW_H - h) >> 1;
   const box = panel(ctx, x, y, w, h, 'DAM IT');
   const bird = S.birdSprite(1, true);
   ctx.drawImage(bird, box.x + box.w - bird.width - 2, box.y - 2);
 
   const lines = [
-    ['YOU ARE THE VALLEY\'S BEAVER CONTRACTOR.', PAL.paper],
-    ['WILD ANIMALS WANT HOMES. BUILD THEM.', PAL.paper3],
+    ['GRANDMA IS IN HOSPITAL. THE BILL IS 4800.', PAL.paper],
+    ['YOU ARE A CARPENTER NOW. GET TO WORK.', PAL.paper3],
     ['', PAL.paper],
-    ['IN CAMP', PAL.gold2],
-    ['A / D   WALK      SPACE  JUMP', PAL.paper],
-    ['E       USE WHAT YOU ARE STANDING AT', PAL.paper],
+    ['THE WORKSHOP', PAL.gold2],
+    ['A / D  WALK      E  USE THE BENCH YOU ARE AT', PAL.paper],
+    ['PHONE TAKE JOBS  SAW  LOGS INTO PLANKS', PAL.paper],
+    ['BENCH BUILD IT   MAP  FLY OUT AND FIT IT', PAL.paper],
     ['', PAL.paper],
-    ['ON THE HERON', PAL.gold2],
-    ['WASD    FLY       CLICK  MARK / BUILD', PAL.paper],
-    ['1-9     TOOLS     TAB    OTHER TOOLS', PAL.paper],
-    ['RCLICK  CANCEL    E      FLY HOME', PAL.paper],
+    ['IN THE TREES', PAL.gold2],
+    ['E CHOP, SPACE ON THE SWING - THEN RUN WHEN', PAL.paper],
+    ['IT CREAKS, OR IT LANDS ON YOU.', PAL.paper],
     ['', PAL.paper],
-    ['SHIFT SPEEDS TIME UP.  P PAUSES.  H HELP.', PAL.paper3],
+    ['AT A CUSTOMER: WASD WALK, E CARRY AND FIT,', PAL.paper3],
+    ['B BLUEPRINT, R RE-DRESS THE ROOM.', PAL.paper3],
+    ['M FROM THE OLD CAMP COMES HOME. H HELP.', PAL.paper3],
   ];
   lines.forEach((entry, i) => text(ctx, entry[0], box.x, box.y + i * 9, entry[1]));
   if (button(ctx, box.x + (box.w >> 1) - 34, box.y + box.h - 14, 68, 12, 'LET\'S BUILD')) helpOpen = false;
@@ -487,6 +699,10 @@ function drawHelp(ctx) {
 
 // ------------------------------------------------------------------- wire
 boot();
+// Sound can only start after a gesture, so the first tap or key does it.
+for (const ev of ['pointerdown', 'keydown', 'touchstart']) {
+  window.addEventListener(ev, () => unlockAudio(), { once: true });
+}
 requestAnimationFrame(step);
 window.addEventListener('beforeunload', () => saveGame());
 
@@ -498,6 +714,9 @@ Object.defineProperty(window, '__touchEnabled', { get: () => touchUI.enabled });
 Object.defineProperty(window, '__inputSnapshot', { get: () => ({ mx: input.mx, my: input.my, over: input.overCanvas, clicked: input.clicked, touches: input.touches.size, isTouch: input.isTouch }) });
 
 window.DAMIT = {
+  // the campaign, exposed so the story can be poked at from the console
+  story, fell, forest, site, travel, phone, saw, asm, buildMenu, cut,
+  goMode, openPhone, openSaw, openAssemble, openMap, openSite, playCutscene,
   G, simulate, newGame, placeSite, completeSite, spawnRequest, makeBeaver,
   toggleTreeMark, takeOff, landHome, openStation, closeStation,
   setHelp: (v) => { helpOpen = v; },
