@@ -8,10 +8,10 @@ import { sprite, px, rect, disc, line } from './pixel.js';
 import { RAMPS, ramp, mix, noise, speck, ao, rim, contact, turf, plank } from './paint.js';
 
 export const TREES = [
-  { id: 'oak',    bark: RAMPS.oak,    leaf: RAMPS.leafA, shape: 'broad',  h: 96 },
-  { id: 'pine',   bark: RAMPS.walnut, leaf: RAMPS.leafB, shape: 'conifer', h: 112 },
-  { id: 'birch',  bark: RAMPS.birch,  leaf: RAMPS.leafC, shape: 'slender', h: 88 },
-  { id: 'maple',  bark: RAMPS.oak,    leaf: RAMPS.autumn, shape: 'broad',  h: 92 },
+  { id: 'oak',    bark: ramp('#6b4423'),  leaf: RAMPS.leafA,  shape: 'broad',   h: 96 },
+  { id: 'pine',   bark: ramp('#4f3320'),  leaf: RAMPS.leafB,  shape: 'conifer', h: 112 },
+  { id: 'birch',  bark: ramp('#b0a184'),  leaf: RAMPS.leafC,  shape: 'slender', h: 88 },
+  { id: 'maple',  bark: ramp('#7a4a28'),  leaf: RAMPS.autumn, shape: 'broad',   h: 92 },
 ];
 
 export const TREE_KINDS = TREES.length;
@@ -86,7 +86,7 @@ function bark(ctx, x, y, w, h, br, kind, seed) {
     }
   } else {
     // furrowed bark: broken vertical grooves
-    for (let g = 0; g < Math.max(2, w * 0.7); g++) {
+    for (let g = 0; g < Math.max(3, w * 1.1); g++) {
       let gx = x + rng() * w;
       let gy = y + rng() * h * 0.4;
       const len = h * (0.3 + rng() * 0.6);
@@ -149,22 +149,34 @@ export function tree(kind, stage = 1, size = 0.5) {
         clumps.push([cx + Math.round(spread * 0.6), ty + 4, Math.max(3, Math.round(spread * 0.42)), 0.42]);
       }
     } else {
-      const r = Math.round(w * 0.2);
-      const boughs = grow > 0.5 ? 4 : 2;
-      for (let i = 0; i < boughs; i++) {
-        const a = -2.6 + (i / (boughs - 1 || 1)) * 2.0 + (rng() - 0.5) * 0.3;
-        const len = h * (0.2 + rng() * 0.12);
-        const bx = Math.round(cx + Math.cos(a) * len);
-        const by = Math.round(crownY + 8 + Math.sin(a) * len * 0.5);
-        line(ctx, cx, crownY + 14, bx, by, sp.bark[1]);
-        line(ctx, cx + 1, crownY + 14, bx + 1, by, sp.bark[0]);
-        clumps.push([bx, by, Math.round(r * (0.75 + rng() * 0.4)), 0.74]);
+      // A broad crown: clumps arranged round an irregular dome, each at its own
+      // height and radius. Laying them out at one height gives a flat slab, and
+      // branches drawn out past the foliage read as legs under a table - so the
+      // branch stubs stay inside the mass.
+      const r = Math.round(w * 0.19);
+      const domeY = crownY - Math.round(r * 0.5);
+      const ring = [
+        [0.00, -1.05, 1.05], [-0.86, -0.34, 0.95], [0.88, -0.40, 0.92],
+        [-0.52, 0.34, 0.82], [0.56, 0.30, 0.86], [0.00, -0.20, 1.00],
+        [-1.05, -0.86, 0.62], [1.02, -0.80, 0.66],
+      ];
+      for (const [ox, oy, rr] of ring) {
+        const jx = (rng() - 0.5) * r * 0.22;
+        const jy = (rng() - 0.5) * r * 0.22;
+        clumps.push([
+          Math.round(cx + ox * r * 1.05 + jx),
+          Math.round(domeY + oy * r * 0.92 + jy),
+          Math.max(3, Math.round(r * rr * (0.9 + rng() * 0.2))),
+          0.76,
+        ]);
       }
-      clumps.push([cx, crownY - Math.round(r * 0.4), Math.round(r * 1.15), 0.74]);
-      clumps.push([cx - Math.round(r * 0.95), crownY + Math.round(r * 0.35), Math.round(r * 0.9), 0.74]);
-      clumps.push([cx + Math.round(r * 0.95), crownY + Math.round(r * 0.3), Math.round(r * 0.85), 0.74]);
-      clumps.push([cx - Math.round(r * 0.35), crownY - Math.round(r * 1.0), Math.round(r * 0.8), 0.74]);
-      clumps.push([cx + Math.round(r * 0.45), crownY - Math.round(r * 0.85), Math.round(r * 0.75), 0.74]);
+      // two short limbs, kept under the foliage
+      for (const side of [-1, 1]) {
+        const bx = Math.round(cx + side * r * 0.6);
+        const by = Math.round(crownY + 6);
+        line(ctx, cx, crownY + 12, bx, by, sp.bark[1]);
+        line(ctx, cx + side, crownY + 12, bx + side, by, sp.bark[0]);
+      }
     }
     // back to front, so upper clumps shade the ones beneath
     clumps.sort((a, b) => a[1] - b[1]);
@@ -241,6 +253,20 @@ export function bush(variant = 0, berry = null) {
         px(ctx, bx + 1, by, mix(berry, '#ffffff', 0.45));
       }
     }
+  });
+}
+
+/** A bush at one of three sizes, for scattering along a treeline. */
+export function scrubBush(size = 1, variant = 0) {
+  const lr = [RAMPS.leafA, RAMPS.leafB, RAMPS.leafC][variant % 3];
+  const d = [22, 32, 44][size % 3];
+  return sprite(`scrub:${size}:${variant}`, d, Math.round(d * 0.72) + 3, (ctx) => {
+    const h = Math.round(d * 0.72);
+    contact(ctx, d >> 1, h + 1, Math.round(d * 0.36), 2, 0.28);
+    const r = Math.round(d * 0.3);
+    leafClump(ctx, Math.round(d * 0.32), h - r, r, lr, 900 + size * 7 + variant, { squash: 0.8 });
+    leafClump(ctx, Math.round(d * 0.7), h - r + 2, Math.round(r * 0.9), lr, 930 + size, { squash: 0.8 });
+    leafClump(ctx, Math.round(d * 0.5), h - r * 1.7, Math.round(r * 0.95), lr, 960 + variant, { squash: 0.78 });
   });
 }
 

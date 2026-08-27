@@ -13,7 +13,7 @@ import { story, MATERIALS, HOSPITAL_BILL, tutorialStep } from '../story.js';
 import { drawFurniture } from '../gfx/furniture.js';
 import { elder } from '../gfx/actors.js';
 import { RAMPS, ramp, mix, noise, contact, ao, rim, speck, plank, plankWall, cloth, metal,
-         glass, brick, stonework, shingles } from '../gfx/paint.js';
+         glass, brick, stonework, shingles, band } from '../gfx/paint.js';
 import * as PROP from '../gfx/props.js';
 import * as N from '../gfx/nature.js';
 
@@ -47,55 +47,52 @@ export function nearestWorkStation(px0) {
 
 // ------------------------------------------------------------------- shell
 function shell(ctx, t) {
-  // ---- roof space and rafters
-  rect(ctx, 0, 0, VIEW_W, CEILING, '#2e2118');
-  speck(ctx, 0, 0, VIEW_W, CEILING - 8, ['#3a2a1e', '#241a14'], 200, 5);
-  for (let x = Math.floor(cam.x / 60) * 60; x < cam.x + VIEW_W + 60; x += 60) {
-    const sx = cam.sx(x);
-    plank(ctx, sx, 0, 7, CEILING - 8, RAMPS.walnut, { dir: 'v', knots: 0, grain: 0 });
-    ctx.globalAlpha = 0.35;
-    rect(ctx, sx, 0, 7, CEILING - 8, '#1b1424');
-    ctx.globalAlpha = 1;
-    // things stored up in the rafters
-    if ((x / 60) % 2 === 0) {
-      plank(ctx, sx - 26, CEILING - 16, 60, 5, RAMPS.pine, { dir: 'h', knots: 1 });
-      plank(ctx, sx - 20, CEILING - 21, 48, 5, RAMPS.pine, { dir: 'h', knots: 0 });
+  const camX = cam.x;
+  // ---- roof space and rafters, as one world-anchored tile
+  band(ctx, 'ws:roofspace', 120, camX, 0, CEILING, VIEW_W, (c, w, h) => {
+    rect(c, 0, 0, w, h, '#2e2118');
+    speck(c, 0, 0, w, h - 8, ['#3a2a1e', '#241a14'], 60, 5);
+    // two rafters per tile, with timber stored across them
+    for (const rx of [10, 70]) {
+      plank(c, rx, 0, 7, h - 8, RAMPS.walnut, { dir: 'v', knots: 0, grain: 0 });
+      c.globalAlpha = 0.35;
+      rect(c, rx, 0, 7, h - 8, '#1b1424');
+      c.globalAlpha = 1;
     }
-  }
-  plank(ctx, 0, CEILING - 9, VIEW_W, 10, RAMPS.walnut, { dir: 'h', knots: 1 });
-  rect(ctx, 0, CEILING - 9, VIEW_W, 1, RAMPS.walnut[4]);
+    plank(c, 24, h - 24, 60, 5, RAMPS.pine, { dir: 'h', knots: 1 });
+    plank(c, 32, h - 29, 44, 5, RAMPS.pine, { dir: 'h', knots: 0 });
+    plank(c, 0, h - 9, w, 10, RAMPS.walnut, { dir: 'h', knots: 1 });
+    rect(c, 0, h - 9, w, 1, RAMPS.walnut[4]);
+  });
 
-  // ---- wall: wide boards, studs, a painted rail
-  plankWall(ctx, 0, CEILING, VIEW_W, WORKSHOP_GROUND - CEILING, WALL, { step: 24, dir: 'v' });
-  ctx.globalAlpha = 0.3;
-  rect(ctx, 0, CEILING, VIEW_W, 12, '#1b1424');
-  ctx.globalAlpha = 1;
-  for (let x = Math.floor(cam.x / 96) * 96; x < cam.x + VIEW_W + 96; x += 96) {
-    plank(ctx, cam.sx(x), CEILING, 7, WORKSHOP_GROUND - CEILING, RAMPS.oak, { dir: 'v', knots: 1 });
-  }
-  plank(ctx, 0, WORKSHOP_GROUND - 9, VIEW_W, 10, RAMPS.walnut, { dir: 'h', knots: 0 });
+  // ---- the wall
+  const wallH = WORKSHOP_GROUND - CEILING;
+  band(ctx, 'ws:wall', 96, camX, CEILING, wallH, VIEW_W, (c, w, h) => {
+    plankWall(c, 0, 0, w, h, WALL, { step: 24, dir: 'v' });
+    c.globalAlpha = 0.3;
+    rect(c, 0, 0, w, 12, '#1b1424');
+    c.globalAlpha = 1;
+    plank(c, 0, 0, 7, h, RAMPS.oak, { dir: 'v', knots: 1 });     // a stud per tile
+    plank(c, 0, h - 9, w, 10, RAMPS.walnut, { dir: 'h', knots: 0 });
+  });
 
-  // ---- floor
-  for (let i = 0; i < 8; i++) {
-    plank(ctx, -20, WORKSHOP_GROUND + i * 10, VIEW_W + 40, 10, FLOORB,
-          { dir: 'h', seed: 200 + i, knots: i % 4 === 0 ? 1 : 0 });
-  }
-  for (let x = Math.floor(cam.x / 78) * 78; x < cam.x + VIEW_W + 78; x += 78) {
-    for (let i = 0; i < 8; i++) {
-      rect(ctx, cam.sx(x + (i % 2) * 39), WORKSHOP_GROUND + i * 10, 1, 10,
-           mix(FLOORB[1], FLOORB[0], 0.5));
+  // ---- the floor
+  const floorH = VIEW_H - WORKSHOP_GROUND;
+  band(ctx, 'ws:floor', 78, camX, WORKSHOP_GROUND, floorH, VIEW_W, (c, w, h) => {
+    for (let i = 0; i < Math.ceil(h / 10); i++) {
+      plank(c, 0, i * 10, w, 10, FLOORB, { dir: 'h', seed: 200 + i, knots: i % 4 === 0 ? 1 : 0 });
+      // staggered board ends
+      rect(c, (i % 2) * 39, i * 10, 1, 10, mix(FLOORB[1], FLOORB[0], 0.5));
     }
-  }
-  // shavings and offcuts drifted across the boards
-  const dust = rngFrom(3131);
-  for (let i = 0; i < 220; i++) {
-    const sx = cam.sx(dust() * WORKSHOP_W);
-    if (sx < 0 || sx > VIEW_W) continue;
-    const sy = WORKSHOP_GROUND + 2 + Math.round(dust() * 60);
-    const roll = dust();
-    if (roll > 0.9) { rect(ctx, sx, sy, 3, 1, RAMPS.pine[4]); px(ctx, sx + 3, sy, RAMPS.pine[2]); }
-    else px(ctx, sx, sy, roll > 0.5 ? RAMPS.pine[4] : PAL.paper2);
-  }
+    // shavings and offcuts, baked into the tile so they do not crawl
+    const rng = noise(3131);
+    for (let i = 0; i < 60; i++) {
+      const sx = rng() * w, sy = rng() * h;
+      const roll = rng();
+      if (roll > 0.9) { rect(c, sx, sy, 3, 1, RAMPS.pine[4]); px(c, sx + 3, sy, RAMPS.pine[2]); }
+      else px(c, sx, sy, roll > 0.5 ? RAMPS.pine[4] : PAL.paper2);
+    }
+  });
 }
 
 /** Windows, and the light they throw across the room. */

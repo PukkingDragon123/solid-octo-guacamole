@@ -71,6 +71,42 @@ export const RAMPS = {
   glass:  ramp('#9fd8ef'),
 };
 
+// --------------------------------------------------------- surface tiling
+/**
+ * A textured band that stays put while the camera moves.
+ *
+ * Painting a procedural texture straight to the screen each frame anchors the
+ * pattern to the screen rather than the world: walk, and the grain crawls across
+ * the surface instead of scrolling with it. So the texture is painted once into
+ * a cached tile, and the tile is blitted at world-aligned positions.
+ *
+ * `paint(ctx, w, h)` fills one tile; `key` must describe its look completely.
+ */
+export function band(ctx, key, tileW, camX, y, h, viewW, paint) {
+  const img = tile(key, tileW, h, paint);
+  // the first tile boundary at or before the left edge of the view
+  const startWorld = Math.floor(camX / tileW) * tileW;
+  for (let wx = startWorld; wx < camX + viewW + tileW; wx += tileW) {
+    ctx.drawImage(img, Math.round(wx - camX), y);
+  }
+}
+
+const tileCache = new Map();
+
+/** One cached texture tile. */
+export function tile(key, w, h, paint) {
+  let found = tileCache.get(key);
+  if (found) return found;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, w | 0);
+  canvas.height = Math.max(1, h | 0);
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  paint(ctx, canvas.width, canvas.height);
+  tileCache.set(key, canvas);
+  return canvas;
+}
+
 // ------------------------------------------------------------- primitives
 const P = (ctx, x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, 1, 1); };
 const R = (ctx, x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w | 0, h | 0); };

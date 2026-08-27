@@ -7,7 +7,8 @@ import { G, toast } from '../state.js';
 import { PAL, rect, frame, px, text, disc, line, rngFrom, wrap, sprite, surface, outline, rimLight }
   from '../gfx/pixel.js';
 import { SUN } from '../gfx/actors.js';
-import { RAMPS, ramp, mix, noise as pnoise, turf, soilBand, contact, plank, speck } from '../gfx/paint.js';
+import { RAMPS, ramp, mix, noise as pnoise, turf, soilBand, contact, plank, speck, band,
+         tile as pTile } from '../gfx/paint.js';
 import * as N from '../gfx/nature.js';
 import * as B from '../gfx/structures.js';
 import * as PROP from '../gfx/props.js';
@@ -324,34 +325,38 @@ export function drawForest(ctx, t) {
     ctx.drawImage(img, Math.round(cx < -70 ? cx + VIEW_W + 140 : cx), 14 + (i * 23) % 46);
   }
   // far ridge lines, three deep
+  // three ranges of hills. The silhouette is a sum of sines of the world
+  // coordinate, so it is continuous however far you walk - a wrapped noise
+  // buffer leaves a visible step in the skyline.
   for (let layer = 0; layer < 3; layer++) {
     const tone = ['#93b8d8', '#6fa763', '#4f9243'][layer];
+    const crest = ['#a9c8e0', '#84b877', '#63a651'][layer];
     const yBase = 96 + layer * 22;
     const par = 0.06 + layer * 0.05;
-    const rng = rngFrom(900 + layer);
-    let h = 0;
     for (let x = 0; x < VIEW_W + 2; x++) {
-      h += (rng() - 0.5) * 4;
-      h = Math.max(-14, Math.min(14, h));
-      const wx = Math.round(x + cam.x * par) % 400;
-      const hill = Math.sin(wx * 0.02) * 12;
-      rect(ctx, x, Math.round(yBase + h * 0.4 + hill), 1, VIEW_H, tone);
+      const wx = x + cam.x * par + layer * 300;
+      const hill = Math.sin(wx * 0.011) * 13 + Math.sin(wx * 0.027 + layer) * 6
+                 + Math.sin(wx * 0.061 + layer * 2) * 2.5;
+      const y = Math.round(yBase + hill);
+      rect(ctx, x, y, 1, VIEW_H, tone);
+      rect(ctx, x, y, 1, 2, crest);
     }
   }
   // two ranks of trees behind the stand, each on its own parallax and haze
   const midRng = rngFrom(4000);
   const mid = [];
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 46; i++) {
     mid.push({ x: midRng() * FOREST_W, v: [0, 1, 1, 2, 3, 3][Math.floor(midRng() * 6) % 6],
                g: 0.55 + midRng() * 0.45, size: midRng(), depth: midRng() < 0.5 ? 0.34 : 0.6 });
   }
   for (const depth of [0.34, 0.6]) {
-    const groundY = FOREST_GROUND - (depth < 0.5 ? 26 : 12);
+    // their feet must be on the turf, or the trunks float in the hills
+    const groundY = FOREST_GROUND + (depth < 0.5 ? 2 : 6);
     for (const tree of mid) {
       if (tree.depth !== depth) continue;
       const sx = Math.round(tree.x - cam.x * depth);
       if (sx < -90 || sx > VIEW_W + 90) continue;
-      const img = N.tree(tree.v, tree.g * (depth < 0.5 ? 0.55 : 0.78), tree.size);
+      const img = N.tree(tree.v, tree.g * (depth < 0.5 ? 0.4 : 0.62), tree.size * 0.5);
       const lean = (Math.sin(t * 0.8 + tree.x) * 0.5 + f.wind) * 0.008;
       ctx.save();
       ctx.transform(1, 0, -lean, 1, lean * groundY, 0);
@@ -365,103 +370,107 @@ export function drawForest(ctx, t) {
   }
 
   // ---- ground
-  // turf with a lit crown and blades standing off it, then the soil beneath
-  turf(ctx, 0, FOREST_GROUND, VIEW_W, 56, RAMPS.grass, { seed: 4477 });
-  soilBand(ctx, 0, FOREST_GROUND + 56, VIEW_W, VIEW_H - FOREST_GROUND - 56, RAMPS.soil, { seed: 2211 });
-  // a beaten path along the walk line, with stones trodden into it
+  // turf with a lit crown and blades standing off it, then the soil beneath -
+  // both as world-anchored tiles, or they crawl as you walk
+  band(ctx, 'forest:turf', 96, cam.x, FOREST_GROUND, 56, VIEW_W,
+       (c, w, h) => turf(c, 0, 0, w, h, RAMPS.grass, { seed: 4477 }));
+  band(ctx, 'forest:soil', 96, cam.x, FOREST_GROUND + 56, VIEW_H - FOREST_GROUND - 56, VIEW_W,
+       (c, w, h) => soilBand(c, 0, 0, w, h, RAMPS.soil, { seed: 2211 }));
+  // the path and everything growing on the turf, baked into one world-anchored
+  // tile: flowers, clover, trodden stones, dapples of sun
   const pathY = FOREST_GROUND + 20;
-  rect(ctx, 0, pathY, VIEW_W, 14, '#a3854f');
-  rect(ctx, 0, pathY, VIEW_W, 2, '#bd9c5f');
-  rect(ctx, 0, pathY + 13, VIEW_W, 1, '#7c6338');
-  const pth = rngFrom(6060);
-  for (let i = 0; i < 120; i++) {
-    const sx = cam.sx(pth() * FOREST_W);
-    if (sx < 0 || sx > VIEW_W) continue;
-    const py = pathY + 2 + Math.round(pth() * 10);
-    const roll = pth();
-    if (roll > 0.85) { rect(ctx, sx, py, 3, 2, '#c9c0b5'); px(ctx, sx, py, PAL.white); }
-    else px(ctx, sx, py, roll > 0.5 ? '#8f7442' : '#b89355');
-  }
-  // ragged edges, so it looks walked rather than drawn
-  for (let x = 0; x < VIEW_W; x += 2) {
-    const wx = x + cam.x;
-    const wob = Math.round(Math.sin(wx * 0.11) * 2 + Math.sin(wx * 0.37) * 1);
-    rect(ctx, x, pathY + wob, 2, 2, SUN.grass1);
-    rect(ctx, x, pathY + 12 - wob, 2, 2, SUN.grass1);
-  }
-
-  // wildflowers and clover on the turf
-  const bloom = rngFrom(9111);
-  for (let i = 0; i < 90; i++) {
-    const sx = cam.sx(bloom() * FOREST_W);
-    const by = FOREST_GROUND + 4 + Math.round(bloom() * 48);
-    if (sx < 0 || sx > VIEW_W) continue;
-    if (Math.abs(by - (pathY + 7)) < 9) continue;      // not on the path
-    const kind = bloom();
-    if (kind < 0.34) { px(ctx, sx, by, '#f7cc55'); px(ctx, sx, by + 1, SUN.grass0); }
-    else if (kind < 0.58) { px(ctx, sx, by, '#f2f2f2'); px(ctx, sx + 1, by, '#f2f2f2'); px(ctx, sx, by + 1, SUN.grass0); }
-    else if (kind < 0.74) { px(ctx, sx, by, '#e8626f'); px(ctx, sx, by + 1, SUN.grass0); }
-    else { px(ctx, sx, by, SUN.grass3); px(ctx, sx + 1, by - 1, SUN.grass4); }
-  }
-
-  // dapples of sun coming through the canopy
-  ctx.globalAlpha = 0.09;
-  const dap = rngFrom(5522);
-  for (let i = 0; i < 34; i++) {
-    const sx = cam.sx(dap() * FOREST_W);
-    const dy = FOREST_GROUND + 3 + Math.round(dap() * 22);
-    const rw = 5 + Math.round(dap() * 9);
-    if (sx < -20 || sx > VIEW_W) continue;
-    for (let k = -2; k <= 2; k++) {
-      const span = Math.round(rw * Math.sqrt(Math.max(0, 1 - (k * k) / 6)));
-      rect(ctx, sx - span, dy + k, span * 2, 1, '#ffe9b0');
+  band(ctx, 'forest:path', 128, cam.x, pathY, 14, VIEW_W, (c, w, h) => {
+    rect(c, 0, 0, w, h, '#a3854f');
+    rect(c, 0, 0, w, 2, '#bd9c5f');
+    rect(c, 0, h - 1, w, 1, '#7c6338');
+    const pth = pnoise(6060);
+    for (let i = 0; i < 44; i++) {
+      const sx = pth() * w, py = 2 + pth() * (h - 4);
+      const roll = pth();
+      if (roll > 0.85) { rect(c, sx, py, 3, 2, '#c9c0b5'); px(c, sx, py, PAL.white); }
+      else px(c, sx, py, roll > 0.5 ? '#8f7442' : '#b89355');
+    }
+    // ragged grassy edges
+    for (let x = 0; x < w; x += 2) {
+      const wob = Math.round(Math.sin(x * 0.11) * 2 + Math.sin(x * 0.37));
+      rect(c, x, wob, 2, 2, RAMPS.grass[2]);
+      rect(c, x, h - 2 - wob, 2, 2, RAMPS.grass[2]);
+    }
+  });
+  for (let v = 0; v < 3; v++) {
+    const tileW = 128;
+    const img = pTile(`forest:bloom:${v}`, tileW, 52, (c, w, h) => bloomTile(c, w, h, 9111 + v * 977));
+    const start = Math.floor(cam.x / tileW) * tileW;
+    for (let wx = start - tileW; wx < cam.x + VIEW_W + tileW; wx += tileW) {
+      // a repeatable shuffle: which of the three tiles goes at this world slot
+      if (Math.abs(Math.round(wx / tileW)) % 3 !== v) continue;
+      ctx.drawImage(img, Math.round(wx - cam.x), FOREST_GROUND + 2);
     }
   }
-  ctx.globalAlpha = 1;
+
+  drawClearing(ctx, t, f);
+}
+
+/** One tile of meadow: flowers, clover, and dapples of sun through the canopy. */
+function bloomTile(c, w, h, seed) {
+  {
+    const bloom = pnoise(seed);
+    for (let i = 0; i < 34; i++) {
+      const sx = bloom() * w, by = bloom() * h;
+      if (by > 16 && by < 34) continue;                 // keep the path clear
+      const kind = bloom();
+      if (kind < 0.34) { px(c, sx, by, '#f7cc55'); px(c, sx, by + 1, RAMPS.grass[1]); }
+      else if (kind < 0.58) { px(c, sx, by, '#f2f2f2'); px(c, sx + 1, by, '#f2f2f2'); }
+      else if (kind < 0.74) { px(c, sx, by, '#e8626f'); px(c, sx, by + 1, RAMPS.grass[1]); }
+      else { px(c, sx, by, RAMPS.grass[4]); px(c, sx + 1, by - 1, RAMPS.grass[3]); }
+    }
+    // dapples of sun through the canopy
+    c.globalAlpha = 0.1;
+    const dap = pnoise(seed + 41);
+    for (let i = 0; i < 10; i++) {
+      const sx = dap() * w, dy = dap() * 18, rw = 5 + dap() * 9;
+      for (let k = -2; k <= 2; k++) {
+        const span = Math.round(rw * Math.sqrt(Math.max(0, 1 - (k * k) / 6)));
+        rect(c, sx - span, dy + k, span * 2, 1, '#ffe9b0');
+      }
+    }
+    c.globalAlpha = 1;
+  }
+}
+
+/** The rest of the clearing: scrub, undergrowth, the cabin and what flies. */
+function drawClearing(ctx, t, f) {
 
   // scrub along the back of the clearing: irregular, gappy, and three greens
   // deep, so it never reads as a row of stamped bushes
   const scrub = rngFrom(1234);
-  const clumps = [];
-  for (let i = 0; i < 90; i++) {
-    clumps.push({ x: scrub() * FOREST_W, r: 7 + scrub() * 10, h: 8 + scrub() * 18,
-                  tone: scrub(), gap: scrub() });
+  if (!f.scrub) {
+    f.scrub = [];
+    for (let i = 0; i < 90; i++) {
+      f.scrub.push({ x: scrub() * FOREST_W, r: 7 + scrub() * 10, h: 8 + scrub() * 18,
+                     tone: scrub(), gap: scrub() });
+    }
   }
+  const clumps = f.scrub;
   for (const c of clumps) {
     if (c.gap > 0.78) continue;                       // a gap you can see through
     const sx = cam.sx(c.x);
-    if (sx < -30 || sx > VIEW_W + 30) continue;
-    const lr = c.tone > 0.66 ? RAMPS.leafA : c.tone > 0.33 ? RAMPS.leafB : RAMPS.leafC;
-    const cy = FOREST_GROUND - Math.round(c.h * 0.4);
-    const r = Math.round(c.r);
-    disc(ctx, sx, cy, r, lr[1]);
-    disc(ctx, sx - 1, cy - 2, Math.max(1, r - 3), lr[2]);
-    disc(ctx, sx - 2, cy - 3, Math.max(1, r - 6), lr[3]);
-    // notch the whole silhouette, and pick out leaves inside it, so a bush is
-    // never a plain circle
-    for (let a = 0; a < Math.PI * 2; a += 0.16) {
-      const rr = r + (scrub() > 0.6 ? 1 : 0) - (scrub() > 0.75 ? 2 : 0);
-      const up = Math.sin(a) < -0.2;
-      px(ctx, Math.round(sx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * rr * 0.82),
-         up ? lr[3] : lr[1]);
-      if (up && scrub() > 0.7) {
-        px(ctx, Math.round(sx + Math.cos(a) * (rr - 1)), Math.round(cy + Math.sin(a) * (rr - 1) * 0.82), lr[4]);
-      }
-    }
-    for (let k = 0; k < r; k++) {
-      const a = scrub() * Math.PI * 2, rr = scrub() * r * 0.8;
-      const lx = Math.round(sx + Math.cos(a) * rr), ly = Math.round(cy + Math.sin(a) * rr * 0.82);
-      if (scrub() > 0.6) { px(ctx, lx, ly, lr[0]); }
-      else { px(ctx, lx, ly, lr[3]); px(ctx, lx + 1, ly, lr[2]); }
-    }
+    if (sx < -40 || sx > VIEW_W + 40) continue;
+    const img = N.scrubBush(c.r > 14 ? 2 : c.r > 10 ? 1 : 0, Math.floor(c.tone * 3));
+    ctx.drawImage(img, sx - (img.width >> 1), FOREST_GROUND + 2 - img.height);
   }
 
-  // undergrowth: bushes, ferns, tufts, mushrooms, stones and fallen wood
+  // undergrowth: bushes, ferns, tufts, mushrooms, stones and fallen wood, laid
+  // out once and remembered, so nothing shuffles as you walk
   const flora = rngFrom(818);
-  const under = [];
-  for (let i = 0; i < 150; i++) {
-    under.push({ x: flora() * FOREST_W, roll: flora(), v: (flora() * 4) | 0, y: flora() });
+  if (!f.under) {
+    f.under = [];
+    for (let i = 0; i < 150; i++) {
+      f.under.push({ x: flora() * FOREST_W, roll: flora(), v: (flora() * 4) | 0, y: flora() });
+    }
   }
+  const under = f.under;
+
   const pathTop = FOREST_GROUND + 20, pathBottom = FOREST_GROUND + 34;
   for (const it of under) {
     const sx = cam.sx(it.x);
@@ -489,9 +498,10 @@ export function drawForest(ctx, t) {
   // ---- the back of the workshop, standing in its own clearing
   drawCabin(ctx, t);
 
-  // a fringe of grass right under the camera, so the ground has a near edge
+  // a fringe of grass right under the camera, anchored to the world so it moves
+  // with the ground rather than sliding across it
   for (let x = -8; x < VIEW_W + 8; x += 3) {
-    const wx = x + cam.x * 1.12;
+    const wx = Math.round(x + cam.x);
     const hh = 4 + Math.round(Math.sin(wx * 0.7) * 2 + Math.sin(wx * 0.13) * 2);
     const bend = Math.round((Math.sin(t * 2.2 + wx * 0.05) + f.gust) * 2);
     for (let k = 0; k < hh; k++) {
@@ -536,7 +546,7 @@ export function drawForest(ctx, t) {
  * js/gfx/structures.js, with the yard clutter of a working carpenter round it.
  */
 function drawCabin(ctx, t) {
-  const sx = cam.sx(70);
+  const sx = cam.sx(96);
   if (sx < -190 || sx > VIEW_W + 190) return;
   const base = FOREST_GROUND + 14;
   const img = B.cabinSide('workshop', { lit: true, door: 'open' });
@@ -551,12 +561,18 @@ function drawCabin(ctx, t) {
   ctx.globalAlpha = 1;
   ctx.drawImage(img, x, y);
 
-  // smoke from the chimney
-  for (let i = 0; i < 7; i++) {
-    const sy = y + 4 - ((t * 12 + i * 8) % 52);
-    const drift = Math.sin(sy * 0.08 + t * 0.7) * 8;
-    ctx.globalAlpha = Math.max(0, 0.45 - i * 0.06);
-    disc(ctx, Math.round(x + img.width - 32 + drift), Math.round(sy), 3 + i, PAL.paper2);
+  // smoke: puffs leaving the pot, growing and fading as they rise, curling a
+  // little rather than tracking off in a straight line
+  const stackX = x + Math.round(img.width * 0.66);
+  const stackY = y + 6;
+  for (let i = 0; i < 8; i++) {
+    const age = ((t * 0.34 + i * 0.125) % 1);          // 0 at the pot, 1 gone
+    const sy = stackY - age * 54;
+    const curl = Math.sin(age * 3.4 + i) * 6 * age;
+    const r = 2 + age * 5;
+    ctx.globalAlpha = Math.max(0, 0.5 * (1 - age));
+    disc(ctx, Math.round(stackX + curl), Math.round(sy), Math.round(r), PAL.paper2);
+    disc(ctx, Math.round(stackX + curl - 1), Math.round(sy - 1), Math.max(1, Math.round(r * 0.6)), PAL.paper);
     ctx.globalAlpha = 1;
   }
 
@@ -583,7 +599,7 @@ export function drawForestHud(ctx, t) {
   if (fell.phase === 'idle') {
     const tree = nearestTree(p.x);
     if (tree) keyPrompt(ctx, cam.sx(tree.x), FOREST_GROUND - 74, 'E', 'CHOP', t);
-    else if (Math.abs(p.x - 70) < 34) keyPrompt(ctx, cam.sx(70), FOREST_GROUND - 46, 'E', 'GO IN', t);
+    else if (Math.abs(p.x - 96) < 36) keyPrompt(ctx, cam.sx(96), FOREST_GROUND - 46, 'E', 'GO IN', t);
   }
 
   if (fell.phase === 'chop') {

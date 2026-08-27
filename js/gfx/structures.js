@@ -36,7 +36,9 @@ export function windowUnit(ctx, x, y, w, h, style, opts = {}) {
   const paint = ramp(st.paint);
   // shutters, folded back either side
   if (opts.shutters !== false) {
-    for (const sx of [x - 9, x + w + 1]) {
+    const sides = opts.shutter === 'left' ? [x - 9] : opts.shutter === 'right' ? [x + w + 1]
+      : [x - 9, x + w + 1];
+    for (const sx of sides) {
       rect(ctx, sx, y - 1, 8, h + 2, paint[2]);
       rect(ctx, sx, y - 1, 8, 1, paint[4]);
       rect(ctx, sx, y + h, 8, 1, paint[0]);
@@ -147,7 +149,7 @@ export function doorUnit(ctx, x, y, w, h, style, opts = {}) {
  * and colour do the work here, not fine texture.
  */
 export function cabinSide(style = 'workshop', opts = {}) {
-  const w = opts.w || 158, h = opts.h || 112;
+  const w = opts.w || 118, h = opts.h || 84;
   const st = STYLES[style] || STYLES.workshop;
   const key = `cabin2:${style}:${w}:${h}:${opts.lit ? 1 : 0}:${opts.door || 'open'}`;
   return sprite(key, w + 40, h + 16, (ctx) => {
@@ -206,11 +208,11 @@ export function cabinSide(style = 'workshop', opts = {}) {
     rect(ctx, Math.round(cx - eavesHalf), wallY + 1, eavesHalf * 2, 1, paint[0]);
 
     // ---- chimney with smoke stains
-    const chX = x + Math.round(w * 0.62);
-    brick(ctx, chX, y - 6, 20, roofH + 18, RAMPS.brick, { bh: 5, bw: 10, seed: 21 });
-    rect(ctx, chX - 3, y - 10, 26, 5, RAMPS.stone[2]);
-    rect(ctx, chX - 3, y - 10, 26, 1, RAMPS.stone[4]);
-    ao(ctx, chX, y - 6, 20, roofH + 18, RAMPS.brick[0], 2);
+    const chX = x + Math.round(w * 0.64);
+    brick(ctx, chX, y - 5, 15, roofH + 14, RAMPS.brick, { bh: 4, bw: 8, seed: 21 });
+    rect(ctx, chX - 2, y - 8, 19, 4, RAMPS.stone[2]);
+    rect(ctx, chX - 2, y - 8, 19, 1, RAMPS.stone[4]);
+    ao(ctx, chX, y - 5, 15, roofH + 14, RAMPS.brick[0], 2);
 
     // ---- windows and door, with a porch over the door
     const winY = wallY + 24;
@@ -220,27 +222,24 @@ export function cabinSide(style = 'workshop', opts = {}) {
     const doorX = Math.round(cx - doorW / 2);
     doorUnit(ctx, doorX, y + h - doorH - 12, doorW, doorH, style,
              { open: opts.door !== 'shut', lit: opts.lit, wreath: true });
-    // ---- decoration, only where it cannot collide with the joinery: props sit
-    // on the footing to left and right, and the lantern hangs beside the door
-    ctx.drawImage(PROP.lantern(true), doorX + doorW + 6, y + h - 52);
-    ctx.drawImage(PROP.barrel('closed'), x + 4, y + h - 40);
-    ctx.drawImage(PROP.bucket(true), x + 28, y + h - 30);
-    ctx.drawImage(PROP.firewood(30, 20), x + w - 40, y + h - 34);
-    ctx.drawImage(PROP.pottedPlant(0), x + w - 66, y + h - 38);
-    ctx.drawImage(PROP.pottedPlant(2), doorX - 26, y + h - 38);
-    // a mat at the door, and boot prints on the step
-    cloth(ctx, doorX + 3, y + h - 11, doorW - 6, 5, RAMPS.cloth, {});
+    // ---- decoration, kept clear of the joinery: props stand on the footing to
+    // either side, and a lantern hangs by the door
+    ctx.drawImage(PROP.lantern(true), doorX + doorW + 3, y + h - 44);
+    ctx.drawImage(PROP.barrel('closed'), x - 14, y + h - 34);
+    ctx.drawImage(PROP.firewood(26, 16), x + w - 12, y + h - 26);
+    ctx.drawImage(PROP.pottedPlant(2), doorX - 22, y + h - 30);
+    cloth(ctx, doorX + 3, y + h - 11, doorW - 6, 4, RAMPS.cloth, {});
     // ivy climbing the near corner
     const rng = noise(77);
-    for (let i = 0; i < 70; i++) {
-      const iy = wallY + 8 + rng() * (wallH - 30);
-      const ix = x + 1 + rng() * 14 * (1 - (iy - wallY) / wallH);
+    for (let i = 0; i < 46; i++) {
+      const iy = wallY + 6 + rng() * (wallH - 22);
+      const ix = x + 1 + rng() * 11 * (1 - (iy - wallY) / wallH);
       px(ctx, Math.round(ix), Math.round(iy), rng() > 0.5 ? RAMPS.leafB[1] : RAMPS.leafB[2]);
       if (rng() > 0.68) px(ctx, Math.round(ix) + 1, Math.round(iy) - 1, RAMPS.leafB[3]);
     }
     // a swallow's nest under the eaves, because detail should tell you something
-    disc(ctx, x + Math.round(w * 0.28), wallY + 6, 4, RAMPS.dirt[1]);
-    disc(ctx, x + Math.round(w * 0.28), wallY + 5, 3, RAMPS.dirt[2]);
+    disc(ctx, x + Math.round(w * 0.26), wallY + 5, 3, RAMPS.dirt[1]);
+    disc(ctx, x + Math.round(w * 0.26), wallY + 4, 2, RAMPS.dirt[2]);
   });
 }
 
@@ -250,12 +249,12 @@ export function cabinSide(style = 'workshop', opts = {}) {
  * roof reads as siding; this reads as a house immediately.
  */
 export function houseTop(style = 'cottage', opts = {}) {
-  const wallW = opts.w || 118;
-  const wallH = opts.wallH || 54;
-  const roofH = opts.roofH || 46;
+  const wallW = opts.w || 112;
+  const wallH = opts.wallH || 42;
+  const roofH = opts.roofH || 30;
   const st = STYLES[style] || STYLES.cottage;
-  const eavesOver = 12;
-  const totalW = wallW + eavesOver * 2 + 12;
+  const eavesOver = 9;
+  const totalW = wallW + eavesOver * 2 + 14;
   const totalH = roofH + wallH + 30;
   const key = `houseTop:${style}:${wallW}:${wallH}:${roofH}:${opts.lit ? 1 : 0}:${opts.sign || ''}`;
   return sprite(key, totalW, totalH, (ctx) => {
@@ -264,8 +263,10 @@ export function houseTop(style = 'cottage', opts = {}) {
     const eavesY = roofTop + roofH;
     const wallY = eavesY + 4;
     const wallX = Math.round(cx - wallW / 2);
-    const ridgeHalf = Math.round(wallW * 0.3);
+    // a gable, so the ridge runs nearly the full length of the house - a hard
+    // taper here is what made it read as a funnel
     const eavesHalf = Math.round(wallW / 2 + eavesOver);
+    const ridgeHalf = Math.round(eavesHalf * 0.78);
 
     // ---- the shadow the building throws on the ground, down and right
     ctx.globalAlpha = 0.3;
@@ -288,12 +289,13 @@ export function houseTop(style = 'cottage', opts = {}) {
     const rng = noise(101);
     for (let i = rows.length - 1; i >= 0; i--) {
       const [a, b] = rows[i];
-      const kA = 1 - a / roofH;                       // 1 at the eaves
-      const halfA = Math.round(ridgeHalf + (eavesHalf - ridgeHalf) * Math.pow(1 - a / roofH, 0.85));
-      const halfB = Math.round(ridgeHalf + (eavesHalf - ridgeHalf) * Math.pow(1 - b / roofH, 0.85));
+      // a = 0 is the ridge at the top, a = roofH is the eaves at the bottom
+      const kA = a / roofH;
+      const halfA = Math.round(ridgeHalf + (eavesHalf - ridgeHalf) * Math.pow(a / roofH, 0.8));
+      const halfB = Math.round(ridgeHalf + (eavesHalf - ridgeHalf) * Math.pow(b / roofH, 0.8));
       const py = roofTop + a;
       const rh = b - a;
-      const shade = 0.42 * (1 - kA);
+      const shade = 0.4 * (1 - kA);
       const tone = (t) => mix(t, '#26304f', shade);
       // each course is a horizontal band, its width interpolated down the slope
       for (let yy = 0; yy < rh; yy++) {
@@ -353,22 +355,23 @@ export function houseTop(style = 'cottage', opts = {}) {
 
     // ---- windows either side of the door
     const winY = wallY + 14;
-    windowUnit(ctx, wallX + 12, winY, 26, 20, style, { lit: opts.lit });
-    windowUnit(ctx, wallX + wallW - 38, winY, 26, 20, style, { lit: opts.lit });
+    windowUnit(ctx, wallX + 12, winY, 22, 18, style, { lit: opts.lit, shutter: 'left', box: false });
+    windowUnit(ctx, wallX + wallW - 34, winY, 22, 18, style,
+               { lit: opts.lit, shutter: 'right', box: false });
     // flower boxes on the sills
-    for (const bx of [wallX + 8, wallX + wallW - 42]) {
-      rect(ctx, bx, winY + 25, 34, 6, RAMPS.walnut[2]);
-      rect(ctx, bx, winY + 25, 34, 1, RAMPS.walnut[4]);
-      rect(ctx, bx, winY + 30, 34, 1, RAMPS.walnut[0]);
+    for (const bx of [wallX + 9, wallX - 37 + wallW]) {
+      rect(ctx, bx, winY + 22, 28, 5, RAMPS.walnut[2]);
+      rect(ctx, bx, winY + 22, 28, 1, RAMPS.walnut[4]);
+      rect(ctx, bx, winY + 26, 28, 1, RAMPS.walnut[0]);
       const fr = noise(bx | 0);
-      for (let i = 0; i < 8; i++) {
-        px(ctx, bx + 3 + i * 4, winY + 24 - ((fr() * 2) | 0), i % 2 ? '#e8626f' : '#f7cc55');
-        px(ctx, bx + 4 + i * 4, winY + 25, RAMPS.leafB[2]);
+      for (let i = 0; i < 7; i++) {
+        px(ctx, bx + 3 + i * 4, winY + 21 - ((fr() * 2) | 0), i % 2 ? '#e8626f' : '#f7cc55');
+        px(ctx, bx + 4 + i * 4, winY + 22, RAMPS.leafB[2]);
       }
     }
 
     // ---- the door, dead centre, standing open with the room warm behind it
-    const doorW = 26, doorH = 36;
+    const doorW = 24, doorH = 34;
     const doorX = Math.round(cx - doorW / 2);
     doorUnit(ctx, doorX, wallY + wallH - doorH, doorW, doorH, style,
              { open: opts.open !== false, lit: opts.lit });
@@ -442,13 +445,17 @@ export function gardenBed(w = 56, h = 34, crop = 'leaf') {
     }
     boxFrame(ctx, 0, 0, w, h, RAMPS.walnut[1]);
     const rng = noise(19);
-    for (let y = 3; y < h - 2; y += 6) {
-      for (let x = 4; x < w - 3; x += 9) {
-        const tone = crop === 'flower' ? ['#e8626f', '#f7cc55', '#a97ee0'][(rng() * 3) | 0] : RAMPS.leafC[3];
+    for (let y = 4; y < h - 1; y += 5) {
+      for (let x = 3; x < w - 2; x += 5) {
+        const tone = crop === 'flower' ? ['#e8626f', '#f7cc55', '#a97ee0', '#f2f2f2'][(rng() * 4) | 0]
+                                       : RAMPS.leafC[3];
+        // a leafy cushion with a bloom on top, so the bed reads green not brown
         px(ctx, x, y, RAMPS.leafB[2]);
-        px(ctx, x - 1, y - 1, tone);
-        px(ctx, x + 1, y - 1, tone);
-        px(ctx, x, y - 2, crop === 'flower' ? tone : RAMPS.leafC[4]);
+        px(ctx, x - 1, y, RAMPS.leafB[1]);
+        px(ctx, x + 1, y, RAMPS.leafB[3]);
+        px(ctx, x, y - 1, RAMPS.leafC[3]);
+        px(ctx, x, y - 2, tone);
+        if (rng() > 0.6) px(ctx, x + 1, y - 2, tone);
       }
     }
   });

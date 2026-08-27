@@ -406,6 +406,8 @@ function handleCampInput() {
 
 // ------------------------------------------------------------------- loop
 let last = performance.now();
+let timeOverride = null;
+const wallClock = () => (timeOverride !== null ? timeOverride : performance.now() / 1000);
 
 function step(now) {
   const real = Math.min(0.05, (now - last) / 1000);
@@ -490,9 +492,9 @@ function update(real) {
 
 function render(real) {
   if (drawOrientationHint(ctx)) return;
-  if (screenMode === 'title') { renderTitle(real); drawTouchControls(ctx, performance.now() / 1000); return; }
+  if (screenMode === 'title') { renderTitle(real); drawTouchControls(ctx, wallClock()); return; }
   const t = G.time;
-  const wall = performance.now() / 1000;
+  const wall = wallClock();
   ctx.imageSmoothingEnabled = false;
 
   if (screenMode === 'cutscene') {
@@ -551,18 +553,18 @@ function render(real) {
   }
 
   if (G.mode === 'camp') {
-    drawCamp(ctx, performance.now() / 1000);
-    drawPlayer(ctx, G.player, performance.now() / 1000);
+    drawCamp(ctx, wallClock());
+    drawPlayer(ctx, G.player, wallClock());
     const station = nearestStation(G.player.x);
     if (station && !G.station && !mini.active) {
       const sx = cam.sx(station.x);
-      keyPrompt(ctx, sx, CAMP_GROUND - 58, 'E', station.label, performance.now() / 1000);
+      keyPrompt(ctx, sx, CAMP_GROUND - 58, 'E', station.label, wallClock());
     }
   } else {
     drawValley(ctx, t, screen);
     const tile = mouseTile();
     if (input.overCanvas && input.my < VIEW_H - 40) drawCursor(ctx, tile.x, tile.y, t);
-    drawRider(ctx, G.rider, performance.now() / 1000);
+    drawRider(ctx, G.rider, wallClock());
     nightWash(ctx);
   }
 
@@ -582,11 +584,11 @@ function render(real) {
   drawToasts(ctx, real, G.mode === 'sky' ? 44 : 16, touchUI.enabled);
 
   // --- overlays
-  if (mini.active) { if (!drawMinigame(ctx, performance.now() / 1000)) closeMinigame2(); }
-  else if (G.station) drawStation(ctx, performance.now() / 1000, real);
+  if (mini.active) { if (!drawMinigame(ctx, wallClock())) closeMinigame2(); }
+  else if (G.station) drawStation(ctx, wallClock(), real);
   if (helpOpen) drawHelp(ctx);
 
-  drawTouchControls(ctx, performance.now() / 1000);
+  drawTouchControls(ctx, wallClock());
 
   if (fade.dur > 0) drawFade(ctx);
 }
@@ -732,6 +734,12 @@ for (const ev of ['pointerdown', 'keydown', 'touchstart']) {
 }
 requestAnimationFrame(step);
 window.addEventListener('beforeunload', () => saveGame());
+
+// Test hooks: pin the camera to a whole pixel, and freeze the animation clock,
+// so one frame can be compared against another taken at a different camera
+// offset. Without the frozen clock, sway and flicker swamp the comparison.
+window.__pinCam = (x) => { cam.x = x; render(0); };
+window.__freezeTime = (t) => { timeOverride = t; };
 
 Object.defineProperty(window, '__scale', { get: () => screen.scale });
 Object.defineProperty(window, '__camx', { get: () => Math.round(cam.x) });

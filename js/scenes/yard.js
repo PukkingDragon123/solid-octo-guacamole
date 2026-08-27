@@ -9,6 +9,7 @@ import { RAMPS, mix, noise, contact, ao, plank, cloth, metal, stonework, water, 
   from '../gfx/paint.js';
 import * as N from '../gfx/nature.js';
 import * as B from '../gfx/structures.js';
+import * as PROP from '../gfx/props.js';
 import { heroTop, npcTop, drawTop } from '../gfx/actors.js';
 import { keyPrompt } from '../ui/widgets.js';
 import { NPCS } from '../orders.js';
@@ -27,9 +28,9 @@ const YARDS = {
   cobb:    { style: 'forge',     yard: 'quarry' },
 };
 
-const HOUSE_CX = 240, HOUSE_TOP = 26;
-const DOOR_Y = 178;                 // where the step is, in view pixels
-const GROUND_TOP = 96;              // the yard starts below the house eaves
+const HOUSE_CX = 240, HOUSE_TOP = 22;
+const DOOR_Y = 150;                 // where the step is, in view pixels
+const GROUND_TOP = 84;              // the yard starts below the house eaves
 
 export const yard = {
   active: false, npc: null, t: 0,
@@ -98,69 +99,87 @@ export const enteredHouse = () => yard.leaving > 0;
 
 // -------------------------------------------------------------------- draw
 function drawGround(ctx, t) {
-  // turf: six tile variants, then broad patches over the top so the field is
-  // never one flat green
+  // lawn: six tile variants, then broad patches so the field is never one green
   for (let y = GROUND_TOP; y < VIEW_H; y += 16) {
     for (let x = 0; x < VIEW_W; x += 16) {
-      const v = ((x * 7 + y * 13) / 16) % 6;
-      ctx.drawImage(N.grassTile(v | 0, 16), x, y);
+      ctx.drawImage(N.grassTile(((x * 7 + y * 13) / 16) % 6 | 0, 16), x, y);
     }
   }
   N.grassPatches(ctx, 0, GROUND_TOP, VIEW_W, VIEW_H - GROUND_TOP, 4242);
-  // the path: beaten earth, wider at the gate, narrowing to the step
-  for (let y = DOOR_Y + 8; y < VIEW_H; y += 16) {
+
+  // the path: gate to doorstep, dead straight, worn wider where feet turn
+  for (let y = DOOR_Y + 6; y < VIEW_H; y += 16) {
     const k = (y - DOOR_Y) / (VIEW_H - DOOR_Y);
-    const halfW = Math.round(18 + k * 12);
+    const halfW = Math.round(15 + k * 10);
     for (let x = HOUSE_CX - halfW; x < HOUSE_CX + halfW; x += 16) {
       ctx.drawImage(N.dirtTile((x / 16 + y / 8) % 3, 16), x, y);
     }
-    // ragged edges where grass creeps in
     const rng = noise(y | 0);
-    for (let i = 0; i < 10; i++) {
-      px(ctx, HOUSE_CX - halfW + ((rng() * 6) | 0), y + rng() * 16, RAMPS.grass[2]);
-      px(ctx, HOUSE_CX + halfW - ((rng() * 6) | 0), y + rng() * 16, RAMPS.grass[2]);
+    for (let i = 0; i < 12; i++) {
+      px(ctx, HOUSE_CX - halfW + ((rng() * 5) | 0), y + rng() * 16, RAMPS.grass[2]);
+      px(ctx, HOUSE_CX + halfW - ((rng() * 5) | 0), y + rng() * 16, RAMPS.grass[2]);
     }
   }
-  // two flagstones right at the step, and nothing further - the rest is earth
+  // two flagstones at the step, and nothing further
   for (let i = 0; i < 2; i++) {
-    const sy = DOOR_Y + 2 + i * 13;
-    stonework(ctx, HOUSE_CX - 17, sy, 34, 11, RAMPS.stone, { seed: 20 + i });
-    ao(ctx, HOUSE_CX - 17, sy, 34, 11, '#1b1424', 1);
-    contact(ctx, HOUSE_CX, sy + 12, 17, 2, 0.22);
+    const sy = DOOR_Y - 4 + i * 12;
+    stonework(ctx, HOUSE_CX - 16, sy, 32, 10, RAMPS.stone, { seed: 20 + i });
+    ao(ctx, HOUSE_CX - 16, sy, 32, 10, '#1b1424', 1);
+    contact(ctx, HOUSE_CX, sy + 11, 16, 2, 0.22);
+  }
+
+  // flower beds either side of the door, up against the wall
+  for (const bx of [HOUSE_CX - 78, HOUSE_CX + 22]) {
+    ctx.drawImage(B.gardenBed(56, 20, 'flower'), bx, DOOR_Y - 16);
   }
 }
 
-/** Trees, hedging and scatter round the edges, so the yard has a boundary. */
+/** The boundary: hedge behind the house, trees framing, fence along the front. */
 function drawBorder(ctx, t) {
-  const rng = noise(303);
-  // hedge and trees down both sides
-  for (let i = 0; i < 6; i++) {
-    const ty = GROUND_TOP + 10 + i * 30;
-    ctx.drawImage(N.treeTop(i % N.TREE_KINDS, 0.5 + (i % 2) * 0.4), -6, ty - 20);
-    ctx.drawImage(N.treeTop((i + 2) % N.TREE_KINDS, 0.4 + (i % 3) * 0.3), VIEW_W - 44, ty - 10);
+  // a hedge running behind the house, hiding the join with the hills
+  for (let x = -10; x < VIEW_W + 20; x += 22) {
+    const h = 14 + Math.round(Math.sin(x * 0.09) * 4 + Math.sin(x * 0.31) * 2);
+    for (const [dx, r] of [[0, 11], [11, 9]]) {
+      disc(ctx, x + dx, GROUND_TOP + 6 - h, r, RAMPS.leafB[1]);
+      disc(ctx, x + dx - 1, GROUND_TOP + 4 - h, r - 3, RAMPS.leafB[2]);
+      disc(ctx, x + dx - 2, GROUND_TOP + 2 - h, r - 6, RAMPS.leafB[3]);
+    }
   }
-  // fence across the front, with a gate gap on the path
+
+  // trees down both sides, planted on the lawn
+  for (let i = 0; i < 5; i++) {
+    const ty = GROUND_TOP + 26 + i * 34;
+    ctx.drawImage(N.treeTop(i % N.TREE_KINDS, 0.4 + (i % 2) * 0.4), -14, ty - 24);
+    ctx.drawImage(N.treeTop((i + 2) % N.TREE_KINDS, 0.35 + (i % 3) * 0.3), VIEW_W - 38, ty - 14);
+  }
+  // and two canopies hanging into frame from above, to close the composition
+  ctx.drawImage(N.treeTop(0, 1), -26, -30);
+  ctx.drawImage(N.treeTop(3, 0.8), VIEW_W - 30, -34);
+
+  // fence across the front, with a gate on the path
   const fence = B.fenceTop(60);
   for (let x = -6; x < VIEW_W; x += 58) {
     if (Math.abs(x + 30 - HOUSE_CX) < 46) continue;
-    ctx.drawImage(fence, x, VIEW_H - 22);
+    ctx.drawImage(fence, x, VIEW_H - 20);
   }
-  // gate posts
   for (const gx of [HOUSE_CX - 44, HOUSE_CX + 38]) {
-    rect(ctx, gx, VIEW_H - 30, 6, 16, RAMPS.walnut[2]);
+    rect(ctx, gx, VIEW_H - 30, 6, 18, RAMPS.walnut[2]);
     rect(ctx, gx, VIEW_H - 30, 6, 2, RAMPS.walnut[4]);
-    contact(ctx, gx + 3, VIEW_H - 14, 5, 2, 0.3);
+    disc(ctx, gx + 3, VIEW_H - 32, 3, RAMPS.walnut[3]);
+    contact(ctx, gx + 3, VIEW_H - 12, 5, 2, 0.3);
   }
-  // scatter: tufts, flowers, stones
-  for (let i = 0; i < 34; i++) {
-    const sx = 10 + rng() * (VIEW_W - 20);
-    const sy = GROUND_TOP + 8 + rng() * (VIEW_H - GROUND_TOP - 24);
-    if (Math.abs(sx - HOUSE_CX) < 40 && sy > DOOR_Y) continue;
-    if (sy < DOOR_Y && Math.abs(sx - HOUSE_CX) < 80) continue;
+
+  // scatter over the lawn: tufts, flowers, stones, mushrooms
+  const rng = noise(303);
+  for (let i = 0; i < 60; i++) {
+    const sx = 8 + rng() * (VIEW_W - 16);
+    const sy = GROUND_TOP + 10 + rng() * (VIEW_H - GROUND_TOP - 26);
+    if (Math.abs(sx - HOUSE_CX) < 34 && sy > DOOR_Y) continue;      // not on the path
+    if (sy < DOOR_Y && Math.abs(sx - HOUSE_CX) < 88) continue;      // nor under the house
     const roll = rng();
-    if (roll < 0.4) ctx.drawImage(N.grassTuft((rng() * 2) | 0), sx, sy);
-    else if (roll < 0.72) ctx.drawImage(N.flower((rng() * 4) | 0), sx, sy);
-    else if (roll < 0.86) ctx.drawImage(N.rock(0), sx, sy);
+    if (roll < 0.42) ctx.drawImage(N.grassTuft((rng() * 3) | 0), sx, sy);
+    else if (roll < 0.74) ctx.drawImage(N.flower((rng() * 4) | 0), sx, sy);
+    else if (roll < 0.88) ctx.drawImage(N.rock(0), sx, sy);
     else ctx.drawImage(N.mushroom((rng() * 2) | 0), sx, sy);
   }
 }
@@ -269,9 +288,16 @@ function drawTradeYard(ctx, kind, t) {
       px(ctx, rx, ry, rng() > 0.5 ? RAMPS.stone[1] : RAMPS.stone[3]);
     }
   }
-  // everyone has a well and a vegetable bed
-  ctx.drawImage(B.wellTop(), VIEW_W - 84, 150);
-  ctx.drawImage(B.gardenBed(56, 34, 'leaf'), VIEW_W - 84, 200);
+  // everyone has a well, a vegetable bed, a bench and something being carted
+  ctx.drawImage(B.wellTop(), VIEW_W - 76, 132);
+  ctx.drawImage(B.gardenBed(58, 30, 'leaf'), VIEW_W - 80, 180);
+  ctx.drawImage(PROP.crate('apples'), VIEW_W - 116, 216);
+  ctx.drawImage(PROP.barrel('open'), VIEW_W - 88, 220);
+  ctx.drawImage(PROP.stool(), 122, 232);
+  ctx.drawImage(PROP.bucket(true), 96, 210);
+  ctx.drawImage(PROP.firewood(32, 20), 40, 226);
+  ctx.drawImage(PROP.pottedPlant(0), HOUSE_CX + 60, DOOR_Y - 10);
+  ctx.drawImage(PROP.pottedPlant(2), HOUSE_CX - 76, DOOR_Y - 12);
 }
 
 export function drawYard(ctx, t) {
@@ -306,11 +332,10 @@ export function drawYard(ctx, t) {
   const hx = HOUSE_CX - (img.width >> 1);
   // the shadow it casts: a slab offset down and right from the wall base, not a
   // floating ellipse - that is what plants a building on the ground
-  ctx.globalAlpha = 0.28;
+  ctx.globalAlpha = 0.26;
   ctx.fillStyle = '#1b1424';
-  for (let i = 0; i < 12; i++) {
-    const inset = Math.round(i * 0.6);
-    ctx.fillRect(HOUSE_CX - 58 + i + inset, DOOR_Y - 12 + i, 118 - inset, 1);
+  for (let i = 0; i < 8; i++) {
+    ctx.fillRect(HOUSE_CX - 54 + i * 2, DOOR_Y - 8 + i, 108 - i * 2, 1);
   }
   ctx.globalAlpha = 1;
   ctx.drawImage(img, hx, HOUSE_TOP - 10);
@@ -328,7 +353,7 @@ export function drawYard(ctx, t) {
   text(ctx, npc.site.toUpperCase(), HOUSE_CX + 80, VIEW_H - 51, PAL.ink, { align: 'center' });
 
   // the customer, out in the yard until you go in
-  const np = { x: HOUSE_CX - 86, y: DOOR_Y + 26 };
+  const np = { x: HOUSE_CX - 70, y: DOOR_Y + 40 };
   const ears = { rabbit: 'long', squirrel: 'tuft', hedgehog: 'tuft' }[npc.species] || 'round';
   drawTop(ctx, npcTop(npc.tone, Math.floor(t * 1.6) % 2, { ears }), np.x, np.y, 1);
   text(ctx, npc.name.toUpperCase(), np.x, np.y - 30, PAL.white, { align: 'center', shadow: PAL.ink });
