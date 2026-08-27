@@ -1,0 +1,13 @@
+<!doctype html><meta charset=utf-8><body style="margin:0;background:#3e7d2f">
+<div id=o></div>
+<script type="module">
+import {hero,heroTop,elder,granny,foxMedic,HERO_FEET,TOP_FEET} from '../js/gfx/actors.js';
+const o=document.getElementById('o'); const Z=6;
+const add=(img,feet)=>{const c=document.createElement('canvas');c.width=img.width*Z;c.height=(img.height+2)*Z;
+const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(img,0,0,img.width*Z,img.height*Z);
+x.fillStyle='rgba(255,0,0,0.55)';x.fillRect(0,(feet+1)*Z,c.width,2);
+c.style.cssText='margin:3px;image-rendering:pixelated';o.appendChild(c);};
+for(const p of ['idle','walk','chop','saw','carry']) add(hero(p,1),HERO_FEET);
+add(elder('sit',0),HERO_FEET); add(granny('stand'),HERO_FEET); add(foxMedic(0),HERO_FEET);
+for(const d of ['down','up','left']) add(heroTop(d,1),TOP_FEET);
+</script>

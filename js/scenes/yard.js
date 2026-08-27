@@ -28,13 +28,15 @@ const YARDS = {
   cobb:    { style: 'forge',     yard: 'quarry' },
 };
 
-const HOUSE_CX = 240, HOUSE_TOP = 22;
-const DOOR_Y = 150;                 // where the step is, in view pixels
+const HOUSE_CX = 240;
+const HOUSE = B.houseTopMetrics();  // the small cottage, measured
+const DOOR_Y = 132;                 // where the step is, in view pixels
+const HOUSE_TOP = DOOR_Y - HOUSE.base;   // sprite row 0 lands here
 const GROUND_TOP = 84;              // the yard starts below the house eaves
 
 export const yard = {
   active: false, npc: null, t: 0,
-  player: { x: 240, y: 250, vx: 0, vy: 0, face: 1, dir: 'up' },
+  player: { x: 240, y: 222, vx: 0, vy: 0, face: 1, dir: 'up' },
   lastDir: 'up', hint: '', arriving: 0, leaving: 0,
 };
 
@@ -45,21 +47,21 @@ export function openYard(npcId) {
   yard.arriving = 1.2;
   yard.leaving = 0;
   yard.hint = '';
-  yard.player = { x: 240, y: 252, vx: 0, vy: 0, face: 1, dir: 'up' };
+  yard.player = { x: 240, y: 222, vx: 0, vy: 0, face: 1, dir: 'up' };
   return true;
 }
 
 export function closeYard() { yard.active = false; }
 
 const houseImg = (npcId, lit) =>
-  B.houseTop((YARDS[npcId] || YARDS.willow).style, { w: 118, wallH: 54, roofH: 46, lit });
+  B.houseTop((YARDS[npcId] || YARDS.willow).style, { lit });
 
 /** The house blocks the top of the yard; you may only pass through the door. */
 function blocked(x, y) {
-  if (x < 14 || x > VIEW_W - 14 || y > VIEW_H - 8) return true;
-  const doorL = HOUSE_CX - 16, doorR = HOUSE_CX + 16;
+  if (x < 14 || x > VIEW_W - 14 || y > VIEW_H - 44) return true;   // the bank, not the river
+  const half = (HOUSE.doorW >> 1) + 3;
   if (y < DOOR_Y) {
-    if (x > doorL && x < doorR) return y < DOOR_Y - 22;   // the doorway itself
+    if (x > HOUSE_CX - half && x < HOUSE_CX + half) return y < DOOR_Y - 14;
     return true;
   }
   return false;
@@ -88,8 +90,8 @@ export function updateYard(dt) {
   if (Math.abs(p.vx) + Math.abs(p.vy) > 30 && Math.random() < dt * 7) sfx.step();
 
   // stepping into the doorway takes you inside
-  const atDoor = Math.abs(p.x - HOUSE_CX) < 18 && p.y < DOOR_Y - 6;
-  if (atDoor || (pressed('KeyE') && Math.abs(p.x - HOUSE_CX) < 24 && p.y < DOOR_Y + 14)) {
+  const atDoor = Math.abs(p.x - HOUSE_CX) < 12 && p.y < DOOR_Y - 4;
+  if (atDoor || (pressed('KeyE') && Math.abs(p.x - HOUSE_CX) < 22 && p.y < DOOR_Y + 16)) {
     yard.leaving = 1;
   }
 }
@@ -122,15 +124,16 @@ function drawGround(ctx, t) {
   }
   // two flagstones at the step, and nothing further
   for (let i = 0; i < 2; i++) {
-    const sy = DOOR_Y - 4 + i * 12;
-    stonework(ctx, HOUSE_CX - 16, sy, 32, 10, RAMPS.stone, { seed: 20 + i });
-    ao(ctx, HOUSE_CX - 16, sy, 32, 10, '#1b1424', 1);
-    contact(ctx, HOUSE_CX, sy + 11, 16, 2, 0.22);
+    const sy = DOOR_Y + 2 + i * 11;
+    stonework(ctx, HOUSE_CX - 13, sy, 26, 9, RAMPS.stone, { seed: 20 + i });
+    ao(ctx, HOUSE_CX - 13, sy, 26, 9, '#1b1424', 1);
+    contact(ctx, HOUSE_CX, sy + 10, 13, 2, 0.22);
   }
 
   // flower beds either side of the door, up against the wall
-  for (const bx of [HOUSE_CX - 78, HOUSE_CX + 22]) {
-    ctx.drawImage(B.gardenBed(56, 20, 'flower'), bx, DOOR_Y - 16);
+  const bedW = Math.round(HOUSE.wallW / 2) - 14;
+  for (const bx of [HOUSE_CX - 16 - bedW, HOUSE_CX + 16]) {
+    ctx.drawImage(B.gardenBed(bedW, 16, 'flower'), bx, DOOR_Y - 12);
   }
 }
 
@@ -174,8 +177,8 @@ function drawBorder(ctx, t) {
   for (let i = 0; i < 60; i++) {
     const sx = 8 + rng() * (VIEW_W - 16);
     const sy = GROUND_TOP + 10 + rng() * (VIEW_H - GROUND_TOP - 26);
-    if (Math.abs(sx - HOUSE_CX) < 34 && sy > DOOR_Y) continue;      // not on the path
-    if (sy < DOOR_Y && Math.abs(sx - HOUSE_CX) < 88) continue;      // nor under the house
+    if (Math.abs(sx - HOUSE_CX) < 28 && sy > DOOR_Y) continue;      // not on the path
+    if (sy < DOOR_Y && Math.abs(sx - HOUSE_CX) < HOUSE.totalW / 2) continue;  // nor under the house
     const roll = rng();
     if (roll < 0.42) ctx.drawImage(N.grassTuft((rng() * 3) | 0), sx, sy);
     else if (roll < 0.74) ctx.drawImage(N.flower((rng() * 4) | 0), sx, sy);
@@ -296,8 +299,8 @@ function drawTradeYard(ctx, kind, t) {
   ctx.drawImage(PROP.stool(), 122, 232);
   ctx.drawImage(PROP.bucket(true), 96, 210);
   ctx.drawImage(PROP.firewood(32, 20), 40, 226);
-  ctx.drawImage(PROP.pottedPlant(0), HOUSE_CX + 60, DOOR_Y - 10);
-  ctx.drawImage(PROP.pottedPlant(2), HOUSE_CX - 76, DOOR_Y - 12);
+  ctx.drawImage(PROP.pottedPlant(0), HOUSE_CX + (HOUSE.wallW >> 1) + 6, DOOR_Y - 8);
+  ctx.drawImage(PROP.pottedPlant(2), HOUSE_CX - (HOUSE.wallW >> 1) - 16, DOOR_Y - 10);
 }
 
 export function drawYard(ctx, t) {
@@ -334,16 +337,17 @@ export function drawYard(ctx, t) {
   // floating ellipse - that is what plants a building on the ground
   ctx.globalAlpha = 0.26;
   ctx.fillStyle = '#1b1424';
-  for (let i = 0; i < 8; i++) {
-    ctx.fillRect(HOUSE_CX - 54 + i * 2, DOOR_Y - 8 + i, 108 - i * 2, 1);
+  const shHalf = (HOUSE.wallW >> 1) + 3;
+  for (let i = 0; i < 7; i++) {
+    ctx.fillRect(HOUSE_CX - shHalf + i * 2, DOOR_Y - 4 + i, shHalf * 2 - i * 2, 1);
   }
   ctx.globalAlpha = 1;
-  ctx.drawImage(img, hx, HOUSE_TOP - 10);
+  ctx.drawImage(img, hx, HOUSE_TOP);
   for (let i = 0; i < 6; i++) {
-    const sy = HOUSE_TOP - 14 - ((t * 11 + i * 9) % 46);
-    const drift = Math.sin(sy * 0.09 + t * 0.6) * 7;
+    const sy = HOUSE_TOP - 8 - ((t * 11 + i * 9) % 46);
+    const drift = Math.sin(sy * 0.09 + t * 0.6) * 6;
     ctx.globalAlpha = Math.max(0, 0.5 - i * 0.07);
-    disc(ctx, Math.round(HOUSE_CX + 30 + drift), Math.round(sy), 3 + i, '#e8e2d0');
+    disc(ctx, Math.round(HOUSE_CX + 17 + drift), Math.round(sy), 2 + i, '#e8e2d0');
     ctx.globalAlpha = 1;
   }
 
@@ -355,7 +359,7 @@ export function drawYard(ctx, t) {
   // the customer, out in the yard until you go in
   const np = { x: HOUSE_CX - 70, y: DOOR_Y + 40 };
   const ears = { rabbit: 'long', squirrel: 'tuft', hedgehog: 'tuft' }[npc.species] || 'round';
-  drawTop(ctx, npcTop(npc.tone, Math.floor(t * 1.6) % 2, { ears }), np.x, np.y, 1);
+  drawTop(ctx, npcTop(npc.tone, Math.floor(t * 1.6) % 2, { ears }), np.x, np.y + 6, 1);
   text(ctx, npc.name.toUpperCase(), np.x, np.y - 30, PAL.white, { align: 'center', shadow: PAL.ink });
   for (let i = 0; i < 5; i++) {
     rect(ctx, np.x - 10 + i * 5, np.y - 38, 4, 4, i < friendRank(yard.npc) ? PAL.red2 : 'rgba(0,0,0,0.45)');

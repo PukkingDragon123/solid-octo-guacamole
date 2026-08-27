@@ -149,36 +149,42 @@ export function doorUnit(ctx, x, y, w, h, style, opts = {}) {
  * and colour do the work here, not fine texture.
  */
 export function cabinSide(style = 'workshop', opts = {}) {
-  const w = opts.w || 118, h = opts.h || 84;
+  // Deliberately small: a cottage the beaver could walk into in three strides.
+  // Every feature below is a fraction of w/h, so shrinking the house shrinks
+  // its door, windows and chimney with it instead of bursting the walls.
+  const w = opts.w || 76, h = opts.h || 58;
   const st = STYLES[style] || STYLES.workshop;
-  const key = `cabin2:${style}:${w}:${h}:${opts.lit ? 1 : 0}:${opts.door || 'open'}`;
-  return sprite(key, w + 40, h + 16, (ctx) => {
-    const x = 20, y = 8;
-    const roofH = Math.round(h * 0.32);
+  const key = `cabin3:${style}:${w}:${h}:${opts.lit ? 1 : 0}:${opts.door || 'open'}`;
+  return sprite(key, w + 36, h + 16, (ctx) => {
+    const x = 18, y = 8;
+    const roofH = Math.round(h * 0.34);
     const wallY = y + roofH;
     const wallH = h - roofH;
     const cx = x + w / 2;
-    const eaves = 16;
+    const eaves = Math.max(6, Math.round(w * 0.13));
+    const foot = Math.max(6, Math.round(h * 0.15));
+    const trimW = Math.max(3, Math.round(w * 0.055));
+    const ridgeHalf = Math.max(5, Math.round(w * 0.1));
 
-    contact(ctx, cx, y + h + 4, Math.round(w * 0.56), 5, 0.3);
+    contact(ctx, cx, y + h + 3, Math.round(w * 0.56), 4, 0.3);
 
     // ---- footing
-    stonework(ctx, x - 3, y + h - 14, w + 6, 15, RAMPS.stone, { seed: 13 });
-    rect(ctx, x - 3, y + h - 14, w + 6, 1, RAMPS.stone[4]);
+    stonework(ctx, x - 2, y + h - foot, w + 4, foot + 1, RAMPS.stone, { seed: 13 });
+    rect(ctx, x - 2, y + h - foot, w + 4, 1, RAMPS.stone[4]);
 
     // ---- wall
-    plankWall(ctx, x, wallY, w, wallH - 13, st.wall, { step: 20, dir: 'v' });
+    const wallBodyH = wallH - foot + 1;
+    plankWall(ctx, x, wallY, w, wallBodyH, st.wall, { step: 16, dir: 'v' });
     ctx.globalAlpha = 0.32;
-    rect(ctx, x, wallY, w, 8, '#1b1424');            // shadow under the eaves
+    rect(ctx, x, wallY, w, 6, '#1b1424');            // shadow under the eaves
     ctx.globalAlpha = 1;
-    plank(ctx, x - 4, wallY, 7, wallH - 13, st.trim, { dir: 'v', knots: 0 });
-    plank(ctx, x + w - 3, wallY, 7, wallH - 13, st.trim, { dir: 'v', knots: 0 });
-    plank(ctx, x - 5, wallY + Math.round((wallH - 13) * 0.55), w + 10, 5, st.trim,
+    plank(ctx, x - 3, wallY, trimW + 2, wallBodyH, st.trim, { dir: 'v', knots: 0 });
+    plank(ctx, x + w - trimW + 1, wallY, trimW + 2, wallBodyH, st.trim, { dir: 'v', knots: 0 });
+    plank(ctx, x - 4, wallY + Math.round(wallBodyH * 0.55), w + 8, 4, st.trim,
           { dir: 'h', knots: 1 });
 
     // ---- roof: a bold gable, few courses, strong ridge
-    const rows = Math.max(3, Math.round(roofH / 9));
-    const ridgeHalf = 11;
+    const rows = Math.max(3, Math.round(roofH / 7));
     const eavesHalf = w / 2 + eaves;
     for (let i = 0; i < rows; i++) {
       const kA = i / rows, kB = (i + 1) / rows;
@@ -194,52 +200,57 @@ export function cabinSide(style = 'workshop', opts = {}) {
         rect(ctx, cx + half - 1, py + yy, 2, 1, st.trim[1]);
       }
       // tile joints, sparse - a roof, not a brick wall
-      for (let tx = cx - halfA + (i % 2) * 9; tx < cx + halfA; tx += 18) {
+      const tileW = Math.max(9, Math.round(w * 0.16));
+      for (let tx = cx - halfA + (i % 2) * (tileW >> 1); tx < cx + halfA; tx += tileW) {
         rect(ctx, Math.round(tx), py + 1, 1, Math.max(1, rh - 2), st.roof[1]);
       }
     }
-    ridgeCap(ctx, Math.round(cx - ridgeHalf - 3), y - 1, ridgeHalf * 2 + 6, st.roof, { tileW: 7, h: 5 });
-    rect(ctx, Math.round(cx - ridgeHalf - 3), y - 2, ridgeHalf * 2 + 6, 1,
+    ridgeCap(ctx, Math.round(cx - ridgeHalf - 2), y - 1, ridgeHalf * 2 + 4, st.roof, { tileW: 6, h: 4 });
+    rect(ctx, Math.round(cx - ridgeHalf - 2), y - 2, ridgeHalf * 2 + 4, 1,
          mix(st.roof[4], '#ffffff', 0.4));
     // fascia, painted
     const paint = ramp(st.paint);
-    rect(ctx, Math.round(cx - eavesHalf), wallY - 5, eavesHalf * 2, 6, paint[2]);
-    rect(ctx, Math.round(cx - eavesHalf), wallY - 5, eavesHalf * 2, 1, paint[4]);
+    rect(ctx, Math.round(cx - eavesHalf), wallY - 4, eavesHalf * 2, 5, paint[2]);
+    rect(ctx, Math.round(cx - eavesHalf), wallY - 4, eavesHalf * 2, 1, paint[4]);
     rect(ctx, Math.round(cx - eavesHalf), wallY + 1, eavesHalf * 2, 1, paint[0]);
 
     // ---- chimney with smoke stains
-    const chX = x + Math.round(w * 0.64);
-    brick(ctx, chX, y - 5, 15, roofH + 14, RAMPS.brick, { bh: 4, bw: 8, seed: 21 });
-    rect(ctx, chX - 2, y - 8, 19, 4, RAMPS.stone[2]);
-    rect(ctx, chX - 2, y - 8, 19, 1, RAMPS.stone[4]);
-    ao(ctx, chX, y - 5, 15, roofH + 14, RAMPS.brick[0], 2);
+    const chW = Math.max(7, Math.round(w * 0.13));
+    const chX = x + Math.round(w * 0.66);
+    brick(ctx, chX, y + 1, chW, roofH + 7, RAMPS.brick, { bh: 3, bw: 6, seed: 21 });
+    rect(ctx, chX - 2, y - 2, chW + 4, 3, RAMPS.stone[2]);
+    rect(ctx, chX - 2, y - 2, chW + 4, 1, RAMPS.stone[4]);
+    ao(ctx, chX, y + 1, chW, roofH + 7, RAMPS.brick[0], 2);
 
-    // ---- windows and door, with a porch over the door
-    const winY = wallY + 24;
-    windowUnit(ctx, x + 16, winY, 28, 22, style, { lit: opts.lit });
-    windowUnit(ctx, x + w - 56, winY, 28, 22, style, { lit: opts.lit });
-    const doorW = 30, doorH = 44;
+    // ---- windows and door, sized off the wall so they always fit
+    const doorH = Math.max(16, Math.round(wallBodyH * 0.82));
+    const doorW = Math.max(12, Math.round(doorH * 0.62));
     const doorX = Math.round(cx - doorW / 2);
-    doorUnit(ctx, doorX, y + h - doorH - 12, doorW, doorH, style,
-             { open: opts.door !== 'shut', lit: opts.lit, wreath: true });
-    // ---- decoration, kept clear of the joinery: props stand on the footing to
-    // either side, and a lantern hangs by the door
-    ctx.drawImage(PROP.lantern(true), doorX + doorW + 3, y + h - 44);
-    ctx.drawImage(PROP.barrel('closed'), x - 14, y + h - 34);
-    ctx.drawImage(PROP.firewood(26, 16), x + w - 12, y + h - 26);
-    ctx.drawImage(PROP.pottedPlant(2), doorX - 22, y + h - 30);
-    cloth(ctx, doorX + 3, y + h - 11, doorW - 6, 4, RAMPS.cloth, {});
+    const winW = Math.max(12, Math.round(w * 0.2));
+    const winH = Math.max(10, Math.round(winW * 0.78));
+    const winY = wallY + Math.round((wallBodyH - winH) * 0.34);
+    const inset = Math.max(4, Math.round(w * 0.08));
+    windowUnit(ctx, x + inset, winY, winW, winH, style, { lit: opts.lit });
+    windowUnit(ctx, x + w - inset - winW, winY, winW, winH, style, { lit: opts.lit });
+    doorUnit(ctx, doorX, y + h - doorH - foot + 1, doorW, doorH, style,
+             { open: opts.door !== 'shut', lit: opts.lit, wreath: doorW > 20 });
+    // ---- decoration, kept clear of the joinery
+    ctx.drawImage(PROP.lantern(true), doorX + doorW + 2, y + h - foot - 22);
+    ctx.drawImage(PROP.barrel('closed'), x - 12, y + h - foot - 16);
+    ctx.drawImage(PROP.firewood(20, 13), x + w - 6, y + h - foot - 12);
+    ctx.drawImage(PROP.pottedPlant(2), doorX - 17, y + h - foot - 12);
+    cloth(ctx, doorX + 2, y + h - foot - 1, doorW - 4, 3, RAMPS.cloth, {});
     // ivy climbing the near corner
     const rng = noise(77);
-    for (let i = 0; i < 46; i++) {
-      const iy = wallY + 6 + rng() * (wallH - 22);
-      const ix = x + 1 + rng() * 11 * (1 - (iy - wallY) / wallH);
+    for (let i = 0; i < 34; i++) {
+      const iy = wallY + 5 + rng() * (wallBodyH - 14);
+      const ix = x + 1 + rng() * 8 * (1 - (iy - wallY) / wallBodyH);
       px(ctx, Math.round(ix), Math.round(iy), rng() > 0.5 ? RAMPS.leafB[1] : RAMPS.leafB[2]);
       if (rng() > 0.68) px(ctx, Math.round(ix) + 1, Math.round(iy) - 1, RAMPS.leafB[3]);
     }
     // a swallow's nest under the eaves, because detail should tell you something
-    disc(ctx, x + Math.round(w * 0.26), wallY + 5, 3, RAMPS.dirt[1]);
-    disc(ctx, x + Math.round(w * 0.26), wallY + 4, 2, RAMPS.dirt[2]);
+    disc(ctx, x + Math.round(w * 0.26), wallY + 5, 2, RAMPS.dirt[1]);
+    px(ctx, x + Math.round(w * 0.26), wallY + 4, RAMPS.dirt[2]);
   });
 }
 
@@ -248,15 +259,31 @@ export function cabinSide(style = 'workshop', opts = {}) {
  * roof tilting away from you AND the front wall with its door. A flat overhead
  * roof reads as siding; this reads as a house immediately.
  */
+/**
+ * Where the parts of a three-quarter house land, so scenes can plant it on the
+ * ground and line the doorway up with the path without guessing at pixels.
+ */
+export function houseTopMetrics(opts = {}) {
+  const wallW = opts.w || 72;
+  const wallH = opts.wallH || 30;
+  const roofH = opts.roofH || 24;
+  const eavesOver = Math.max(5, Math.round(wallW * 0.09));
+  const foot = Math.max(4, Math.round(wallH * 0.18));
+  return {
+    wallW, wallH, roofH, eavesOver, foot,
+    totalW: wallW + eavesOver * 2 + 14,
+    totalH: roofH + wallH + 30,
+    base: 14 + roofH + wallH + foot,          // sprite row the doorstep rests on
+    doorW: Math.max(11, Math.round(wallW * 0.21)),
+  };
+}
+
 export function houseTop(style = 'cottage', opts = {}) {
-  const wallW = opts.w || 112;
-  const wallH = opts.wallH || 42;
-  const roofH = opts.roofH || 30;
+  // Small on purpose - the beaver reads as the biggest thing on screen.
+  const M = houseTopMetrics(opts);
+  const { wallW, wallH, roofH, eavesOver, totalW, totalH } = M;
   const st = STYLES[style] || STYLES.cottage;
-  const eavesOver = 9;
-  const totalW = wallW + eavesOver * 2 + 14;
-  const totalH = roofH + wallH + 30;
-  const key = `houseTop:${style}:${wallW}:${wallH}:${roofH}:${opts.lit ? 1 : 0}:${opts.sign || ''}`;
+  const key = `houseTop2:${style}:${wallW}:${wallH}:${roofH}:${opts.lit ? 1 : 0}:${opts.sign || ''}`;
   return sprite(key, totalW, totalH, (ctx) => {
     const cx = Math.round(totalW / 2);
     const roofTop = 10;
@@ -269,10 +296,10 @@ export function houseTop(style = 'cottage', opts = {}) {
     const ridgeHalf = Math.round(eavesHalf * 0.78);
 
     // ---- the shadow the building throws on the ground, down and right
+    const shadow = Math.max(6, Math.round(wallH * 0.3));
     ctx.globalAlpha = 0.3;
-    ctx.fillStyle = '#1b1424';
-    for (let i = 0; i < 14; i++) {
-      rect(ctx, wallX + 8 + i, wallY + wallH + i, wallW - 4, 1, '#1b1424');
+    for (let i = 0; i < shadow; i++) {
+      rect(ctx, wallX + 6 + i, wallY + wallH + i, wallW - 4, 1, '#1b1424');
     }
     ctx.globalAlpha = 1;
 
@@ -282,7 +309,7 @@ export function houseTop(style = 'cottage', opts = {}) {
     let pos = 0;
     while (pos < roofH) {
       const k = pos / roofH;
-      const step = Math.max(3, Math.round(9 - 6 * Math.pow(k, 0.7)));
+      const step = Math.max(3, Math.round(8 - 5 * Math.pow(k, 0.7)));
       rows.push([pos, Math.min(roofH, pos + step)]);
       pos += step;
     }
@@ -311,94 +338,105 @@ export function houseTop(style = 'cottage', opts = {}) {
         px(ctx, cx - half - 1, py + yy, tone(st.trim[3]));
       }
       // tile joints, sparse and staggered
-      const tileW = 11;
-      const off = (i % 3) * 4;
+      const tileW = Math.max(8, Math.round(wallW * 0.13));
+      const off = (i % 3) * 3;
       for (let tx = cx - halfA + off; tx < cx + halfA; tx += tileW) {
         if (rng() > 0.5) continue;
         rect(ctx, Math.round(tx), py + 1, 1, Math.max(1, rh - 2), tone(mix(st.roof[1], st.roof[0], 0.6)));
       }
       // moss creeping up from the eaves
       if (kA > 0.65 && rng() > 0.55) {
-        speck(ctx, cx - halfA + rng() * (halfA * 2 - 10), py, 9, rh,
-              [RAMPS.leafB[1], RAMPS.leafB[2]], 6, (py * 17) | 0);
+        speck(ctx, cx - halfA + rng() * (halfA * 2 - 10), py, 8, rh,
+              [RAMPS.leafB[1], RAMPS.leafB[2]], 5, (py * 17) | 0);
       }
     }
 
     // ---- ridge cap along the top
-    ridgeCap(ctx, cx - ridgeHalf - 2, roofTop - 3, ridgeHalf * 2 + 4, st.roof, { tileW: 8, h: 4 });
+    ridgeCap(ctx, cx - ridgeHalf - 2, roofTop - 3, ridgeHalf * 2 + 4, st.roof, { tileW: 7, h: 4 });
     rect(ctx, cx - ridgeHalf - 2, roofTop - 4, ridgeHalf * 2 + 4, 1, mix(st.roof[4], '#ffffff', 0.4));
 
     // ---- chimney, standing behind the ridge
+    const chW = Math.max(7, Math.round(wallW * 0.13));
+    const chH = Math.max(12, Math.round(roofH * 0.8));
     const chX = cx + Math.round(ridgeHalf * 0.45);
-    brick(ctx, chX, roofTop - 20, 15, 24, RAMPS.brick, { bh: 4, bw: 8, seed: 11 });
-    rect(ctx, chX - 2, roofTop - 23, 19, 4, RAMPS.stone[2]);
-    rect(ctx, chX - 2, roofTop - 23, 19, 1, RAMPS.stone[4]);
-    rect(ctx, chX + 4, roofTop - 19, 8, 4, '#161018');
-    ao(ctx, chX, roofTop - 20, 15, 24, RAMPS.brick[0], 2);
+    brick(ctx, chX, roofTop - chH + 4, chW, chH, RAMPS.brick, { bh: 3, bw: 6, seed: 11 });
+    rect(ctx, chX - 2, roofTop - chH + 1, chW + 4, 3, RAMPS.stone[2]);
+    rect(ctx, chX - 2, roofTop - chH + 1, chW + 4, 1, RAMPS.stone[4]);
+    rect(ctx, chX + 2, roofTop - chH + 5, chW - 4, 3, '#161018');
+    ao(ctx, chX, roofTop - chH + 4, chW, chH, RAMPS.brick[0], 2);
 
     // ---- fascia along the eaves, and the shadow it drops on the wall
-    rect(ctx, cx - eavesHalf, eavesY, eavesHalf * 2, 5, st.trim[1]);
+    rect(ctx, cx - eavesHalf, eavesY, eavesHalf * 2, 4, st.trim[1]);
     rect(ctx, cx - eavesHalf, eavesY, eavesHalf * 2, 1, st.trim[3]);
-    rect(ctx, cx - eavesHalf, eavesY + 5, eavesHalf * 2, 1, st.trim[0]);
-    for (let rx = cx - eavesHalf + 5; rx < cx + eavesHalf - 4; rx += 13) {
-      rect(ctx, rx, eavesY + 6, 3, 3, st.trim[1]);      // rafter tails
-      px(ctx, rx, eavesY + 6, st.trim[3]);
+    rect(ctx, cx - eavesHalf, eavesY + 4, eavesHalf * 2, 1, st.trim[0]);
+    const rafter = Math.max(9, Math.round(wallW * 0.14));
+    for (let rx = cx - eavesHalf + 4; rx < cx + eavesHalf - 4; rx += rafter) {
+      rect(ctx, rx, eavesY + 5, 3, 3, st.trim[1]);      // rafter tails
+      px(ctx, rx, eavesY + 5, st.trim[3]);
     }
 
     // ---- the front wall
-    plankWall(ctx, wallX, wallY, wallW, wallH, st.wall, { step: 12, dir: 'v' });
+    plankWall(ctx, wallX, wallY, wallW, wallH, st.wall, { step: 11, dir: 'v' });
     ctx.globalAlpha = 0.4;
-    rect(ctx, wallX, wallY, wallW, 5, '#1b1424');       // under-eaves shadow
+    rect(ctx, wallX, wallY, wallW, 4, '#1b1424');       // under-eaves shadow
     ctx.globalAlpha = 1;
-    plank(ctx, wallX - 4, wallY, 6, wallH, st.trim, { dir: 'v', knots: 0 });
-    plank(ctx, wallX + wallW - 2, wallY, 6, wallH, st.trim, { dir: 'v', knots: 0 });
+    plank(ctx, wallX - 3, wallY, 5, wallH, st.trim, { dir: 'v', knots: 0 });
+    plank(ctx, wallX + wallW - 2, wallY, 5, wallH, st.trim, { dir: 'v', knots: 0 });
 
-    // ---- windows either side of the door
-    const winY = wallY + 14;
-    windowUnit(ctx, wallX + 12, winY, 22, 18, style, { lit: opts.lit, shutter: 'left', box: false });
-    windowUnit(ctx, wallX + wallW - 34, winY, 22, 18, style,
+    // ---- door and windows, all sized off the wall
+    const doorW = Math.max(11, Math.round(wallW * 0.21));
+    const doorH = Math.max(15, Math.round(wallH * 0.74));
+    const doorX = Math.round(cx - doorW / 2);
+    const winW = Math.max(10, Math.round(wallW * 0.2));
+    const winH = Math.max(8, Math.round(winW * 0.8));
+    const winY = wallY + Math.round((wallH - winH) * 0.34);
+    const inset = Math.max(5, Math.round(wallW * 0.1));
+    windowUnit(ctx, wallX + inset, winY, winW, winH, style,
+               { lit: opts.lit, shutter: 'left', box: false });
+    windowUnit(ctx, wallX + wallW - inset - winW, winY, winW, winH, style,
                { lit: opts.lit, shutter: 'right', box: false });
     // flower boxes on the sills
-    for (const bx of [wallX + 9, wallX - 37 + wallW]) {
-      rect(ctx, bx, winY + 22, 28, 5, RAMPS.walnut[2]);
-      rect(ctx, bx, winY + 22, 28, 1, RAMPS.walnut[4]);
-      rect(ctx, bx, winY + 26, 28, 1, RAMPS.walnut[0]);
+    for (const bx of [wallX + inset - 2, wallX + wallW - inset - winW - 2]) {
+      const bw = winW + 4;
+      rect(ctx, bx, winY + winH + 2, bw, 4, RAMPS.walnut[2]);
+      rect(ctx, bx, winY + winH + 2, bw, 1, RAMPS.walnut[4]);
+      rect(ctx, bx, winY + winH + 5, bw, 1, RAMPS.walnut[0]);
       const fr = noise(bx | 0);
-      for (let i = 0; i < 7; i++) {
-        px(ctx, bx + 3 + i * 4, winY + 21 - ((fr() * 2) | 0), i % 2 ? '#e8626f' : '#f7cc55');
-        px(ctx, bx + 4 + i * 4, winY + 22, RAMPS.leafB[2]);
+      for (let i = 0; i * 4 < bw - 3; i++) {
+        px(ctx, bx + 2 + i * 4, winY + winH + 1 - ((fr() * 2) | 0), i % 2 ? '#e8626f' : '#f7cc55');
+        px(ctx, bx + 3 + i * 4, winY + winH + 2, RAMPS.leafB[2]);
       }
     }
 
     // ---- the door, dead centre, standing open with the room warm behind it
-    const doorW = 24, doorH = 34;
-    const doorX = Math.round(cx - doorW / 2);
     doorUnit(ctx, doorX, wallY + wallH - doorH, doorW, doorH, style,
              { open: opts.open !== false, lit: opts.lit });
 
     // ---- footing and step
-    stonework(ctx, wallX - 4, wallY + wallH, wallW + 8, 7, RAMPS.stone, { seed: 3 });
-    rect(ctx, doorX - 6, wallY + wallH + 6, doorW + 12, 4, RAMPS.stone[3]);
-    rect(ctx, doorX - 6, wallY + wallH + 6, doorW + 12, 1, RAMPS.stone[4]);
-    cloth(ctx, doorX + 1, wallY + wallH + 10, doorW - 2, 4, RAMPS.cloth, {});
+    const foot = M.foot;
+    stonework(ctx, wallX - 3, wallY + wallH, wallW + 6, foot, RAMPS.stone, { seed: 3 });
+    rect(ctx, doorX - 4, wallY + wallH + foot - 1, doorW + 8, 3, RAMPS.stone[3]);
+    rect(ctx, doorX - 4, wallY + wallH + foot - 1, doorW + 8, 1, RAMPS.stone[4]);
+    cloth(ctx, doorX + 1, wallY + wallH + foot + 2, doorW - 2, 3, RAMPS.cloth, {});
 
     // ---- a lamp beside the door, lit
-    const lampX = doorX + doorW + 8;
-    rect(ctx, lampX, wallY + wallH - 30, 2, 22, RAMPS.iron[2]);
-    rect(ctx, lampX - 4, wallY + wallH - 36, 10, 7, RAMPS.iron[1]);
-    rect(ctx, lampX - 4, wallY + wallH - 36, 10, 1, RAMPS.iron[3]);
-    glass(ctx, lampX - 3, wallY + wallH - 35, 8, 6, RAMPS.glass, { lit: '#f7cc55' });
+    const lampX = doorX + doorW + 6;
+    const lampH = Math.max(12, Math.round(wallH * 0.55));
+    rect(ctx, lampX, wallY + wallH - lampH, 2, lampH - 5, RAMPS.iron[2]);
+    rect(ctx, lampX - 3, wallY + wallH - lampH - 6, 8, 6, RAMPS.iron[1]);
+    rect(ctx, lampX - 3, wallY + wallH - lampH - 6, 8, 1, RAMPS.iron[3]);
+    glass(ctx, lampX - 2, wallY + wallH - lampH - 5, 6, 5, RAMPS.glass, { lit: '#f7cc55' });
     ctx.globalAlpha = 0.12;
-    disc(ctx, lampX + 1, wallY + wallH - 32, 20, '#f7cc55');
+    disc(ctx, lampX + 1, wallY + wallH - lampH - 2, 16, '#f7cc55');
     ctx.globalAlpha = 1;
 
     // ---- a hanging trade sign, if this place is a shop
     if (opts.sign) {
-      const sx = wallX + 4;
-      rect(ctx, sx, wallY + 8, 14, 2, RAMPS.iron[2]);
-      rect(ctx, sx + 12, wallY + 10, 2, 5, RAMPS.iron[2]);
-      plank(ctx, sx + 2, wallY + 15, 24, 12, RAMPS.oak, { dir: 'h', knots: 0 });
-      boxFrame(ctx, sx + 2, wallY + 15, 24, 12, RAMPS.walnut[1]);
+      const sx = wallX + 3;
+      rect(ctx, sx, wallY + 6, 11, 2, RAMPS.iron[2]);
+      rect(ctx, sx + 9, wallY + 8, 2, 4, RAMPS.iron[2]);
+      plank(ctx, sx + 1, wallY + 12, 18, 9, RAMPS.oak, { dir: 'h', knots: 0 });
+      boxFrame(ctx, sx + 1, wallY + 12, 18, 9, RAMPS.walnut[1]);
     }
   });
 }

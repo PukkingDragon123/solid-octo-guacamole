@@ -33,11 +33,11 @@ import { story, freshStory, tutorialStep, tutorialDone, TUTORIAL, HOSPITAL_BILL 
 import { dailyOffers, makeOffer, pushOffer, NPCS, FURNITURE, outstanding } from './orders.js';
 import { runRobots } from './shop.js';
 import { cut, playCutscene, updateCutscene, drawCutscene } from './scenes/cutscene.js';
-import { drawWorkshop, drawWorkshopHud, nearestWorkStation, WORKSHOP_GROUND, WORKSHOP_BOUNDS }
+import { drawWorkshop, drawWorkshopHud, nearestWorkStation, WORKSHOP_GROUND, WORKSHOP_BOUNDS, WORKSHOP_ZOOM_TOP }
   from './scenes/workshop.js';
 import { drawHeroSide } from './gfx/actors.js';
 import { forest, makeForest, growForest, updateForest, drawForest, drawForestHud, fell,
-         FOREST_GROUND, FOREST_BOUNDS } from './scenes/forest.js';
+         FOREST_GROUND, FOREST_BOUNDS, FOREST_ZOOM_TOP } from './scenes/forest.js';
 import { travel, openMap, closeMap, updateTravel, drawMap, drawFlight, startFlight } from './scenes/travel.js';
 import { site, openSite, closeSite, updateSite, drawSite, geometry as siteGeometry } from './scenes/site.js';
 import { yard, openYard, closeYard, updateYard, drawYard, enteredHouse } from './scenes/yard.js';
@@ -526,18 +526,30 @@ function render(real) {
   }
 
   if (G.mode === 'workshop' || G.mode === 'forest') {
+    // The side-on scenes are drawn through a 2x zoom, so the beaver is the
+    // biggest thing on screen instead of a doll in a cathedral. The window
+    // follows him and stops at the edges of what the scene actually draws.
+    const ZOOM = 2;
+    const winTop = G.mode === 'workshop' ? WORKSHOP_ZOOM_TOP : FOREST_ZOOM_TOP;
+    // snapped to whole world pixels (a half-pixel window makes every texture
+    // in the scene shimmer as you walk)
+    let ox = ZOOM * Math.round(cam.sx(G.player.x) - VIEW_W / (2 * ZOOM));
+    ox = Math.max(0, Math.min(VIEW_W * (ZOOM - 1), ox));
+    ctx.save();
+    ctx.setTransform(ZOOM, 0, 0, ZOOM, -ox, -winTop * ZOOM);
     if (G.mode === 'workshop') {
       drawWorkshop(ctx, wall);
       drawHeroSide(ctx, cam.sx(G.player.x), G.player.y, wall, { player: G.player });
-      if (!campaignOverlay()) drawWorkshopHud(ctx, wall);
     } else {
       drawForest(ctx, wall);
       // chopping shows in the world, not just on the meter
       const pose = fell.phase === 'chop' ? 'chop' : fell.phase === 'blackout' ? 'sit' : null;
       drawHeroSide(ctx, cam.sx(G.player.x), G.player.y, wall,
                    { player: G.player, pose, face: fell.phase === 'chop' ? fell.dodgeSide * -1 : undefined });
-      drawForestHud(ctx, wall);
     }
+    ctx.restore();
+    if (G.mode === 'workshop') { if (!campaignOverlay()) drawWorkshopHud(ctx, wall); }
+    else drawForestHud(ctx, wall);
     drawCampaignHud(ctx, real);
     if (phone.open) { if (!drawPhone(ctx, wall)) closePhone(); }
     else if (buildMenu.open) {

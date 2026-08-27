@@ -11,9 +11,11 @@ import { story, takeMaterials, haveMaterials, missingMaterials, friendRank } fro
 import { NPCS, FURNITURE, REPAIRS, outstanding, takeFurniture, completeOrder } from '../orders.js';
 import { drawFurniture } from '../gfx/furniture.js';
 import { heroTop, npcTop, drawTop, SUN } from '../gfx/actors.js';
-import { RAMPS, ramp, mix, contact, ao, plank, plankWall, cloth, metal, glass, stonework,
+import { RAMPS, ramp, mix, contact, ao, plank, plankWall, cloth, metal, glass, stonework, water,
          speck, noise as pnoise } from '../gfx/paint.js';
 import * as N from '../gfx/nature.js';
+import * as B_ from '../gfx/structures.js';
+import * as PROP from '../gfx/props.js';
 import { sfx } from '../audio.js';
 
 const CELL = 16;                 // one tile, same as the rest of the game
@@ -29,7 +31,7 @@ const THEMES = [
   { id: 'oak',   floor: ['#c78a4c', '#b07840'], wall: '#7c5130', rug: '#c04a4a' },
   { id: 'ash',   floor: ['#e0bd8a', '#c9a878'], wall: '#8a6a45', rug: '#3f5fc4' },
   { id: 'brick', floor: ['#cf8a5f', '#b5714f'], wall: '#9c5340', rug: '#3f7a86' },
-  { id: 'slate', floor: ['#b6bcc4', '#9aa0a8'], wall: '#5a636e', rug: '#a97ee0' },
+  { id: 'stone', floor: ['#cdbfa4', '#b4a488'], wall: '#6e6152', rug: '#a97ee0' },
 ];
 
 /** What each trade keeps against the back wall. One big fixture, one small. */
@@ -86,12 +88,21 @@ function tradeFixtures(ctx, job, t) {
     }
   } else if (job === 'River Fisher') {
     // an inlet along the back wall
-    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, CELL + 4, '#3f9ad8');
-    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, 4, '#6fc0f0');
-    for (let i = 0; i < 26; i++) {
-      px(ctx, ROOM_X + ((i * 23 + Math.floor(t * 14)) % (COLS * CELL)), ROOM_Y + 7 + (i % 3) * 4, '#a3ddfa');
+    water(ctx, ROOM_X, ROOM_Y, COLS * CELL, CELL + 4, RAMPS.water, { phase: t });
+    ctx.globalAlpha = 0.3;
+    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, 3, '#1b1424');       // shaded under the lip
+    ctx.globalAlpha = 1;
+    // a stone lip round the inlet, with reeds growing out of the near edge
+    stonework(ctx, ROOM_X, ROOM_Y + CELL + 4, COLS * CELL, 5, RAMPS.stone, { seed: 44 });
+    rect(ctx, ROOM_X, ROOM_Y + CELL + 4, COLS * CELL, 1, RAMPS.stone[4]);
+    const rr = pnoise(51);
+    for (let i = 0; i < 22; i++) {
+      const rx = ROOM_X + Math.round(rr() * (COLS * CELL - 4));
+      const rh = 4 + Math.round(rr() * 5);
+      const bend = Math.round(Math.sin(t * 1.4 + rx * 0.3) * 1.5);
+      rect(ctx, rx, ROOM_Y + CELL + 4 - rh, 1, rh, RAMPS.leafB[1 + (i % 2)]);
+      px(ctx, rx + bend, ROOM_Y + CELL + 3 - rh, RAMPS.leafB[3]);
     }
-    rect(ctx, ROOM_X, ROOM_Y + CELL + 4, COLS * CELL, 3, '#e0c48a');
     const r = at(8, 1);
     rect(ctx, r.x, r.y + 2, 3, 18, SUN.wood2);
     rect(ctx, r.x + 30, r.y + 2, 3, 18, SUN.wood2);
@@ -341,6 +352,9 @@ function drawRoom(ctx, t) {
     }
   }
 
+  // ---- the garden the house stands in, so the room is not a box on a lawn
+  surroundings(ctx, t, rw, rh);
+
   // ---- the shell: boarded walls seen edge-on, with the roof line above
   const wallT = 9;
   const wallRamp = ramp(th.wall);
@@ -522,6 +536,55 @@ function drawRepair(ctx, t) {
   rect(ctx, p.x - lw / 2, p.y - 22, lw, 10, 'rgba(13,10,9,0.72)');
   text(ctx, label, p.x, p.y - 20, flash ? PAL.red2 : PAL.gold2, { align: 'center' });
   if (site.repairing > 0) bar(ctx, p.x - 22, p.y + 10, 44, 5, site.repairing, PAL.grass3);
+}
+
+
+/**
+ * Hedge, trees and yard clutter around the outside of the room. Without it the
+ * house reads as a crate dropped on an empty field.
+ */
+function surroundings(ctx, t, rw, rh) {
+  const L = ROOM_X - 9, R = ROOM_X + rw + 9, T = ROOM_Y - 16, B = ROOM_Y + rh + 9;
+  // a hedge following the plot, gappy so it never reads as a wall
+  const rng = pnoise(818);
+  const hedge = (x, y) => {
+    const r = 6 + Math.round(rng() * 3);
+    disc(ctx, x, y, r, RAMPS.leafB[1]);
+    disc(ctx, x - 1, y - 2, r - 2, RAMPS.leafB[2]);
+    disc(ctx, x - 2, y - 3, Math.max(1, r - 4), RAMPS.leafB[3]);
+    if (rng() > 0.72) px(ctx, x + 2, y - 2, '#f7cc55');
+  };
+  for (let x = 10; x < VIEW_W - 8; x += 15) {
+    if (Math.abs(x - (ROOM_X + rw / 2)) < 26) continue;      // leave the path clear
+    hedge(x, T - 12 + Math.round(Math.sin(x * 0.2) * 2));
+    if (x < L - 12 || x > R + 12) hedge(x, B + 26 + Math.round(Math.sin(x * 0.3) * 2));
+  }
+  for (let y = T - 4; y < B + 30; y += 15) hedge(L - 26, y);
+  for (let y = T - 4; y < B + 30; y += 15) hedge(R + 26, y);
+  // trees at the corners, from above
+  ctx.drawImage(N.treeTop(0), L - 60, T - 30);
+  ctx.drawImage(N.treeTop(1), R + 34, T - 26);
+  ctx.drawImage(N.treeTop(2), L - 54, B + 4);
+  ctx.drawImage(N.treeTop(0), R + 38, B + 8);
+  // beds, a well and the things a household leaves outside
+  ctx.drawImage(B_.gardenBed(46, 18, 'flower'), L + 6, B + 14);
+  ctx.drawImage(B_.gardenBed(46, 18, 'leaf'), R - 52, B + 14);
+  ctx.drawImage(PROP.barrel('open'), L - 16, B + 2);
+  ctx.drawImage(PROP.crate('apples'), R + 4, B + 4);
+  ctx.drawImage(PROP.firewood(30, 18), L + 2, T - 22);
+  ctx.drawImage(PROP.bucket(true), R - 16, T - 20);
+  // scatter, kept off the path and out of the house
+  const s2 = pnoise(919);
+  for (let i = 0; i < 46; i++) {
+    const sx = 6 + s2() * (VIEW_W - 12);
+    const sy = 6 + s2() * (VIEW_H - 12);
+    if (sx > L - 14 && sx < R + 14 && sy > T - 18 && sy < B + 12) continue;
+    if (Math.abs(sx - (ROOM_X + rw / 2)) < 24 && sy > B) continue;
+    const roll = s2();
+    if (roll < 0.45) ctx.drawImage(N.grassTuft((s2() * 3) | 0), sx, sy);
+    else if (roll < 0.8) ctx.drawImage(N.flower((s2() * 4) | 0), sx, sy);
+    else ctx.drawImage(N.rock(0), sx, sy);
+  }
 }
 
 export function drawSite(ctx, t) {

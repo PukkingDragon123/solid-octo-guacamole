@@ -22,7 +22,9 @@ export const WORKSHOP_GROUND = 182;
 export const WORKSHOP_BOUNDS = { w: WORKSHOP_W, h: VIEW_H };
 
 const T = 16;
-const CEILING = 34;
+const CEILING = 82;
+/** The top of the 2x zoom window the scene is viewed through. */
+export const WORKSHOP_ZOOM_TOP = 82;
 const WALL = ramp('#8a5a33');          // the timber the room is built from
 const FLOORB = ramp('#c08a4c');        // and the boards underfoot
 
@@ -398,20 +400,20 @@ const GRANDPA_IDLE = [
 /** Things left on the floor - what stops the boards reading as an empty apron. */
 function floorClutter(ctx, t) {
   const base = WORKSHOP_GROUND;
-  ctx.drawImage(PROP.rug(96, 28, '#3f7a86'), cam.sx(196), base + 34);
-  ctx.drawImage(PROP.crate('apples'), cam.sx(120), base + 30);
-  ctx.drawImage(PROP.barrel('closed'), cam.sx(352), base + 26);
-  ctx.drawImage(PROP.sack('#c2a35c'), cam.sx(388), base + 32);
-  ctx.drawImage(PROP.stool(), cam.sx(300), base + 40);
-  ctx.drawImage(PROP.bucket(true), cam.sx(462), base + 38);
-  ctx.drawImage(PROP.pottedPlant(1), cam.sx(38), base + 30);
-  ctx.drawImage(PROP.firewood(34, 18), cam.sx(514), base + 40);
+  ctx.drawImage(PROP.rug(72, 20, '#8a4a3c'), cam.sx(206), base + 18);
+  ctx.drawImage(PROP.crate('apples'), cam.sx(120), base + 8);
+  ctx.drawImage(PROP.barrel('closed'), cam.sx(352), base + 6);
+  ctx.drawImage(PROP.sack('#c2a35c'), cam.sx(388), base + 12);
+  ctx.drawImage(PROP.stool(), cam.sx(300), base + 20);
+  ctx.drawImage(PROP.bucket(true), cam.sx(462), base + 18);
+  ctx.drawImage(PROP.pottedPlant(1), cam.sx(38), base + 10);
+  ctx.drawImage(PROP.firewood(34, 18), cam.sx(514), base + 20);
   // offcuts and shavings swept into heaps
   const rng = rngFrom(6161);
   for (let i = 0; i < 160; i++) {
     const sx = cam.sx(rng() * WORKSHOP_W);
     if (sx < 0 || sx > VIEW_W) continue;
-    const sy = base + 20 + rng() * 60;
+    const sy = base + 4 + rng() * 42;
     const roll = rng();
     if (roll > 0.93) { plank(ctx, sx, sy, 10, 3, RAMPS.pine, { dir: 'h', knots: 0, seed: i }); }
     else if (roll > 0.8) { rect(ctx, sx, sy, 3, 1, RAMPS.pine[4]); }

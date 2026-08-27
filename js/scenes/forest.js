@@ -21,6 +21,8 @@ import { sfx } from '../audio.js';
 
 export const FOREST_W = 1600;
 export const FOREST_GROUND = 214;
+/** The top of the 2x zoom window the scene is viewed through. */
+export const FOREST_ZOOM_TOP = 112;
 export const FOREST_BOUNDS = { w: FOREST_W, h: VIEW_H };
 
 const GRAVITY = 520, WALK_ACCEL = 640, WALK_MAX = 74, FRICTION = 900, JUMP_V = -168;
@@ -310,19 +312,25 @@ function drawFallenTrunk(ctx) {
 export function drawForest(ctx, t) {
   const f = forest();
   // ---- sky and distance
+  // The scene is played through a 2x window whose top edge is FOREST_ZOOM_TOP,
+  // so the sky, the sun and the ridge lines all live just above the treetops -
+  // high up in view space nothing would ever be seen.
   const bands = [SUN.sky0, SUN.sky1, SUN.sky2, SUN.sky3];
   for (let i = 0; i < bands.length; i++) {
-    rect(ctx, 0, Math.round(i * 46), VIEW_W, 46, bands[i]);
+    rect(ctx, 0, Math.round(FOREST_ZOOM_TOP - 20 + i * 14), VIEW_W, 15, bands[i]);
   }
+  rect(ctx, 0, 0, VIEW_W, FOREST_ZOOM_TOP - 20, SUN.sky0);
   // a fat sun, low and warm, with soft clouds crossing it
-  disc(ctx, 96, 44, 15, '#fff3c4');
+  const sunY = FOREST_ZOOM_TOP + 8;
+  disc(ctx, 96, sunY, 13, '#fff3c4');
   ctx.globalAlpha = 0.18;
-  for (let i = 1; i <= 3; i++) disc(ctx, 96, 44, 15 + i * 7, '#fff3c4');
+  for (let i = 1; i <= 3; i++) disc(ctx, 96, sunY, 13 + i * 6, '#fff3c4');
   ctx.globalAlpha = 1;
   for (let i = 0; i < 5; i++) {
     const img = S.cloudSprite(i % 2);
     const cx = ((i * 118 - cam.x * 0.05 - G.time * 4) % (VIEW_W + 140)) - 70;
-    ctx.drawImage(img, Math.round(cx < -70 ? cx + VIEW_W + 140 : cx), 14 + (i * 23) % 46);
+    ctx.drawImage(img, Math.round(cx < -70 ? cx + VIEW_W + 140 : cx),
+                  FOREST_ZOOM_TOP - 6 + (i * 13) % 26);
   }
   // far ridge lines, three deep
   // three ranges of hills. The silhouette is a sum of sines of the world
@@ -331,7 +339,7 @@ export function drawForest(ctx, t) {
   for (let layer = 0; layer < 3; layer++) {
     const tone = ['#93b8d8', '#6fa763', '#4f9243'][layer];
     const crest = ['#a9c8e0', '#84b877', '#63a651'][layer];
-    const yBase = 96 + layer * 22;
+    const yBase = FOREST_ZOOM_TOP + 26 + layer * 18;
     const par = 0.06 + layer * 0.05;
     for (let x = 0; x < VIEW_W + 2; x++) {
       const wx = x + cam.x * par + layer * 300;
@@ -548,15 +556,15 @@ function drawClearing(ctx, t, f) {
 function drawCabin(ctx, t) {
   const sx = cam.sx(96);
   if (sx < -190 || sx > VIEW_W + 190) return;
-  const base = FOREST_GROUND + 14;
+  const base = FOREST_GROUND + 10;
   const img = B.cabinSide('workshop', { lit: true, door: 'open' });
   const x = sx - (img.width >> 1);
   const y = base - img.height;
 
   // the shadow it casts on the turf
   ctx.globalAlpha = 0.26;
-  for (let i = 0; i < 10; i++) {
-    rect(ctx, x + 14 + i, base - 10 + i, img.width - 20, 1, PAL.black);
+  for (let i = 0; i < 8; i++) {
+    rect(ctx, x + 12 + i, FOREST_GROUND - 3 + i, img.width - 24 - i, 1, PAL.black);
   }
   ctx.globalAlpha = 1;
   ctx.drawImage(img, x, y);
