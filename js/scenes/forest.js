@@ -10,6 +10,7 @@ import { SUN } from '../gfx/actors.js';
 import { RAMPS, ramp, mix, noise as pnoise, turf, soilBand, contact, plank, speck } from '../gfx/paint.js';
 import * as N from '../gfx/nature.js';
 import * as B from '../gfx/structures.js';
+import * as PROP from '../gfx/props.js';
 import { cam } from '../gfx/screen.js';
 import * as S from '../gfx/sprites.js';
 import { input, pressed, held } from '../input.js';
@@ -418,10 +419,47 @@ export function drawForest(ctx, t) {
   }
   ctx.globalAlpha = 1;
 
+  // scrub along the back of the clearing: irregular, gappy, and three greens
+  // deep, so it never reads as a row of stamped bushes
+  const scrub = rngFrom(1234);
+  const clumps = [];
+  for (let i = 0; i < 90; i++) {
+    clumps.push({ x: scrub() * FOREST_W, r: 7 + scrub() * 10, h: 8 + scrub() * 18,
+                  tone: scrub(), gap: scrub() });
+  }
+  for (const c of clumps) {
+    if (c.gap > 0.78) continue;                       // a gap you can see through
+    const sx = cam.sx(c.x);
+    if (sx < -30 || sx > VIEW_W + 30) continue;
+    const lr = c.tone > 0.66 ? RAMPS.leafA : c.tone > 0.33 ? RAMPS.leafB : RAMPS.leafC;
+    const cy = FOREST_GROUND - Math.round(c.h * 0.4);
+    const r = Math.round(c.r);
+    disc(ctx, sx, cy, r, lr[1]);
+    disc(ctx, sx - 1, cy - 2, Math.max(1, r - 3), lr[2]);
+    disc(ctx, sx - 2, cy - 3, Math.max(1, r - 6), lr[3]);
+    // notch the whole silhouette, and pick out leaves inside it, so a bush is
+    // never a plain circle
+    for (let a = 0; a < Math.PI * 2; a += 0.16) {
+      const rr = r + (scrub() > 0.6 ? 1 : 0) - (scrub() > 0.75 ? 2 : 0);
+      const up = Math.sin(a) < -0.2;
+      px(ctx, Math.round(sx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * rr * 0.82),
+         up ? lr[3] : lr[1]);
+      if (up && scrub() > 0.7) {
+        px(ctx, Math.round(sx + Math.cos(a) * (rr - 1)), Math.round(cy + Math.sin(a) * (rr - 1) * 0.82), lr[4]);
+      }
+    }
+    for (let k = 0; k < r; k++) {
+      const a = scrub() * Math.PI * 2, rr = scrub() * r * 0.8;
+      const lx = Math.round(sx + Math.cos(a) * rr), ly = Math.round(cy + Math.sin(a) * rr * 0.82);
+      if (scrub() > 0.6) { px(ctx, lx, ly, lr[0]); }
+      else { px(ctx, lx, ly, lr[3]); px(ctx, lx + 1, ly, lr[2]); }
+    }
+  }
+
   // undergrowth: bushes, ferns, tufts, mushrooms, stones and fallen wood
   const flora = rngFrom(818);
   const under = [];
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 150; i++) {
     under.push({ x: flora() * FOREST_W, roll: flora(), v: (flora() * 4) | 0, y: flora() });
   }
   const pathTop = FOREST_GROUND + 20, pathBottom = FOREST_GROUND + 34;
@@ -436,8 +474,9 @@ export function drawForest(ctx, t) {
     else if (it.roll < 0.58) img = N.fern();
     else if (it.roll < 0.7) img = N.flower(it.v);
     else if (it.roll < 0.8) img = N.mushroom(it.v % 2);
-    else if (it.roll < 0.92) img = N.rock(it.v % 3);
-    else img = N.log(it.v % N.TREE_KINDS, 40);
+    else if (it.roll < 0.88) img = N.rock(it.v % 3);
+    else if (it.roll < 0.94) img = N.log(it.v % N.TREE_KINDS, 40);
+    else img = N.stump(it.v % N.TREE_KINDS);
     ctx.drawImage(img, sx, baseY - img.height);
   }
 
@@ -458,6 +497,27 @@ export function drawForest(ctx, t) {
     for (let k = 0; k < hh; k++) {
       px(ctx, x + Math.round((k / hh) * bend), VIEW_H - 1 - k, k > hh - 2 ? PAL.grass4 : PAL.grass2);
     }
+  }
+
+  // birds crossing, and butterflies over the flowers
+  for (let i = 0; i < 3; i++) {
+    const bx = ((i * 190 + t * (26 + i * 9)) % (VIEW_W + 80)) - 40;
+    const by = 40 + i * 18 + Math.sin(t * 1.4 + i) * 6;
+    const flap = Math.sin(t * (9 + i)) * 3;
+    line(ctx, bx, by, bx + 4, by - flap, PAL.ink2);
+    line(ctx, bx + 4, by - flap, bx + 8, by, PAL.ink2);
+  }
+  const flit = rngFrom(2929);
+  for (let i = 0; i < 6; i++) {
+    const seed = flit();
+    const bx = cam.sx(seed * FOREST_W + Math.sin(t * 0.8 + i * 2) * 40);
+    const by = FOREST_GROUND - 6 + Math.sin(t * 2.2 + i) * 12;
+    if (bx < 0 || bx > VIEW_W) continue;
+    const wing = Math.floor(t * 12 + i) % 2;
+    const tone = seed > 0.5 ? '#f7cc55' : '#e8e2d0';
+    px(ctx, Math.round(bx), Math.round(by), tone);
+    px(ctx, Math.round(bx) + (wing ? 1 : 2), Math.round(by) - (wing ? 1 : 0), tone);
+    px(ctx, Math.round(bx) - (wing ? 1 : 2), Math.round(by) - (wing ? 1 : 0), tone);
   }
 
   // leaves blowing through, on top of everything

@@ -281,32 +281,6 @@ function setKitchen(ctx, u, t) {
   }
 }
 
-/** The hallway: a dark corridor with the kitchen light at the end of it. */
-function setHall(ctx, u, t) {
-  rect(ctx, 0, 0, VIEW_W, VIEW_H, '#241a14');
-  const cx = VIEW_W / 2, cy = 118;
-  for (let i = 11; i >= 0; i--) {
-    const k = i / 11;
-    const w = 56 + k * 540, h = 44 + k * 300;
-    const tone = mix('#3f2b1e', '#1b1218', k * 0.5);
-    rect(ctx, Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h), tone);
-    // skirting and a floorboard seam on each band, so the perspective reads
-    rect(ctx, Math.round(cx - w / 2), Math.round(cy + h / 2 - 6), Math.round(w), 2, mix(tone, '#000', 0.4));
-  }
-  // the doorway, blazing
-  const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, 170);
-  g.addColorStop(0, 'rgba(255, 240, 190, 0.55)');
-  g.addColorStop(0.4, 'rgba(255, 226, 150, 0.16)');
-  g.addColorStop(1, 'rgba(255, 226, 150, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  rect(ctx, Math.round(cx - 28), Math.round(cy - 22), 56, 44, '#f6e2a8');
-  rect(ctx, Math.round(cx - 28), Math.round(cy - 22), 56, 6, '#fff8d8');
-  // a picture frame on the corridor wall, catching the light
-  plank(ctx, 96, 96, 26, 22, RAMPS.walnut, { dir: 'v', knots: 0 });
-  rect(ctx, 100, 100, 18, 14, '#6b5a44');
-}
-
 /** Extreme close-up: the wall telephone. */
 function setPhone(ctx, u, t) {
   rect(ctx, 0, 0, VIEW_W, VIEW_H, '#241a16');
@@ -680,8 +654,8 @@ const SHOTS = [
     lines: [] },
 
   // reaction, with grandpa's face in an inset panel
-  { set: setLiving, dur: 2.8, framing: 'close', move: 'handheld', focus: [196, 168],
-    setOpts: { storm: true, static: true }, out: 'diagonal',
+  { set: setLiving, dur: 3.0, framing: 'close', move: 'handheld', focus: [196, 168],
+    setOpts: { storm: true, static: true }, out: 'iris',
     stage(ctx, u, t) {
       put(ctx, hero('idle', cycle(t, 6)), 190, 208, 2, 1);
       inset(ctx, 300, 40, 140, 84, (c) => {
@@ -697,21 +671,6 @@ const SHOTS = [
       }, u, t);
     },
     lines: [['GRANDPA', 'MARGUERITE!', 0.1]] },
-
-  // down the hallway
-  { set: setHall, dur: 3.2, framing: 'wide', to: 'medium', move: 'dolly', focus: [240, 150],
-    panTo: [240, 118], out: 'iris',
-    stage(ctx, u, t) {
-      const run = ease.inOut(Math.min(1, u * 1.25));
-      const scale = 3 - run * 1.6;
-      const frame = cycle(t, 11);
-      put(ctx, hero('run', frame), 200 + run * 26, 236 - run * 96, Math.max(1, Math.round(scale)), 1,
-          '#160f14');
-      put(ctx, elder('idle', frame), 286 - run * 22, 250 - run * 106, Math.max(1, Math.round(scale + 0.4)), 1,
-          '#160f14');
-      speedLines(ctx, 0.5 + Math.sin(t * 9) * 0.1, 1, 'rgba(255,226,150,0.35)', 21);
-    },
-    lines: [] },
 
   // the kitchen, revealed on a crane down
   { set: setKitchen, dur: 4.6, framing: 'wide', to: 'full', move: 'crane', focus: [220, 150],

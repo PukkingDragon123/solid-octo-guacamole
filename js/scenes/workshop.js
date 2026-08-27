@@ -1,29 +1,30 @@
-// Grandpa's workshop, played side-on: a one-room timber cabin, warm and bright.
-// This is the hub - the phone rings here, the saw bench and the assembly bench
-// are here, the map table sends you out, and the back door leads to the timber.
-//
-// It is deliberately small. A cabin you can see most of at once reads better
-// than a hall you have to walk across, and it keeps the beaver the right size
-// in frame.
+// Grandpa's workshop: one warm timber room, seen side-on, and the hub the whole
+// game runs through. Five stations, each with its own island of clutter so you
+// can tell where you are at a glance, and enough decoration that it reads as
+// somewhere that has been worked in for forty years.
 
 import { VIEW_W, VIEW_H } from '../config.js';
 import { G } from '../state.js';
-import { PAL, rect, frame, px, text, disc, line, rngFrom, wrap } from '../gfx/pixel.js';
+import { PAL, rect, frame as boxFrame, px, text, disc, line, rngFrom, wrap } from '../gfx/pixel.js';
 import { cam } from '../gfx/screen.js';
 import * as S from '../gfx/sprites.js';
 import { keyPrompt, bar } from '../ui/widgets.js';
-import { story, MATERIALS, HOSPITAL_BILL, tutorialStep, TUTORIAL } from '../story.js';
+import { story, MATERIALS, HOSPITAL_BILL, tutorialStep } from '../story.js';
 import { drawFurniture } from '../gfx/furniture.js';
-import { elder, SUN } from '../gfx/actors.js';
-import { RAMPS, ramp, mix, contact, ao, plank, plankWall, cloth, metal, glass, stonework,
-         soilBand, speck } from '../gfx/paint.js';
+import { elder } from '../gfx/actors.js';
+import { RAMPS, ramp, mix, noise, contact, ao, rim, speck, plank, plankWall, cloth, metal,
+         glass, brick, stonework, shingles } from '../gfx/paint.js';
+import * as PROP from '../gfx/props.js';
+import * as N from '../gfx/nature.js';
 
 export const WORKSHOP_W = 600;
-export const WORKSHOP_GROUND = 200;
+export const WORKSHOP_GROUND = 182;
 export const WORKSHOP_BOUNDS = { w: WORKSHOP_W, h: VIEW_H };
 
-const T = 16;                       // everything lines up on a 16px tile
-const CEILING = 40;                 // where the roof beams sit
+const T = 16;
+const CEILING = 34;
+const WALL = ramp('#8a5a33');          // the timber the room is built from
+const FLOORB = ramp('#c08a4c');        // and the boards underfoot
 
 export const WORK_STATIONS = [
   { id: 'phone',  x: 64,  label: 'THE PHONE',        reach: 26 },
@@ -44,302 +45,319 @@ export function nearestWorkStation(px0) {
   return best ? best.station : null;
 }
 
-// ------------------------------------------------------------------ pieces
-function wallAndFloor(ctx, t) {
-  // roof space above the beams, then the wall, then the floor
-  rect(ctx, 0, 0, VIEW_W, CEILING, '#2f2018');
-  speck(ctx, 0, 0, VIEW_W, CEILING - 6, ['#3a281c', '#241a14'], 260, 5);
-  plank(ctx, 0, CEILING - 7, VIEW_W, 8, RAMPS.walnut, { dir: 'h', knots: 1 });
-  // rafters, receding into the dark
-  for (let x = Math.floor(cam.x / 52) * 52; x < cam.x + VIEW_W + 52; x += 52) {
+// ------------------------------------------------------------------- shell
+function shell(ctx, t) {
+  // ---- roof space and rafters
+  rect(ctx, 0, 0, VIEW_W, CEILING, '#2e2118');
+  speck(ctx, 0, 0, VIEW_W, CEILING - 8, ['#3a2a1e', '#241a14'], 200, 5);
+  for (let x = Math.floor(cam.x / 60) * 60; x < cam.x + VIEW_W + 60; x += 60) {
     const sx = cam.sx(x);
-    plank(ctx, sx, 0, 5, CEILING - 6, RAMPS.walnut, { dir: 'v', knots: 0 });
-    ctx.globalAlpha = 0.3;
-    rect(ctx, sx, 0, 5, CEILING - 6, '#1b1424');
+    plank(ctx, sx, 0, 7, CEILING - 8, RAMPS.walnut, { dir: 'v', knots: 0, grain: 0 });
+    ctx.globalAlpha = 0.35;
+    rect(ctx, sx, 0, 7, CEILING - 8, '#1b1424');
     ctx.globalAlpha = 1;
+    // things stored up in the rafters
+    if ((x / 60) % 2 === 0) {
+      plank(ctx, sx - 26, CEILING - 16, 60, 5, RAMPS.pine, { dir: 'h', knots: 1 });
+      plank(ctx, sx - 20, CEILING - 21, 48, 5, RAMPS.pine, { dir: 'h', knots: 0 });
+    }
   }
+  plank(ctx, 0, CEILING - 9, VIEW_W, 10, RAMPS.walnut, { dir: 'h', knots: 1 });
+  rect(ctx, 0, CEILING - 9, VIEW_W, 1, RAMPS.walnut[4]);
 
-  // the wall: boarded, with studs and a lit top rail
-  plankWall(ctx, 0, CEILING, VIEW_W, WORKSHOP_GROUND - CEILING, ramp('#7c5233'),
-            { step: 21, dir: 'v' });
-  ctx.globalAlpha = 0.28;
-  rect(ctx, 0, CEILING, VIEW_W, 10, '#1b1424');
+  // ---- wall: wide boards, studs, a painted rail
+  plankWall(ctx, 0, CEILING, VIEW_W, WORKSHOP_GROUND - CEILING, WALL, { step: 24, dir: 'v' });
+  ctx.globalAlpha = 0.3;
+  rect(ctx, 0, CEILING, VIEW_W, 12, '#1b1424');
   ctx.globalAlpha = 1;
-  for (let x = Math.floor(cam.x / (T * 5)) * T * 5; x < cam.x + VIEW_W + T * 5; x += T * 5) {
-    plank(ctx, cam.sx(x), CEILING, 6, WORKSHOP_GROUND - CEILING, RAMPS.oak, { dir: 'v', knots: 1 });
+  for (let x = Math.floor(cam.x / 96) * 96; x < cam.x + VIEW_W + 96; x += 96) {
+    plank(ctx, cam.sx(x), CEILING, 7, WORKSHOP_GROUND - CEILING, RAMPS.oak, { dir: 'v', knots: 1 });
   }
-  plank(ctx, 0, WORKSHOP_GROUND - 7, VIEW_W, 8, RAMPS.walnut, { dir: 'h', knots: 0 });
+  plank(ctx, 0, WORKSHOP_GROUND - 9, VIEW_W, 10, RAMPS.walnut, { dir: 'h', knots: 0 });
 
-  // floorboards, running away with a lit edge each
+  // ---- floor
   for (let i = 0; i < 8; i++) {
-    plank(ctx, -20, WORKSHOP_GROUND + i * 10, VIEW_W + 40, 10, RAMPS.pine,
-          { dir: 'h', seed: 200 + i, knots: i % 3 === 0 ? 1 : 0 });
+    plank(ctx, -20, WORKSHOP_GROUND + i * 10, VIEW_W + 40, 10, FLOORB,
+          { dir: 'h', seed: 200 + i, knots: i % 4 === 0 ? 1 : 0 });
   }
-  // board ends, staggered like real flooring
-  for (let x = Math.floor(cam.x / 74) * 74; x < cam.x + VIEW_W + 74; x += 74) {
+  for (let x = Math.floor(cam.x / 78) * 78; x < cam.x + VIEW_W + 78; x += 78) {
     for (let i = 0; i < 8; i++) {
-      const sx = cam.sx(x + (i % 2) * 37);
-      rect(ctx, sx, WORKSHOP_GROUND + i * 10, 1, 10, mix(RAMPS.pine[1], RAMPS.pine[0], 0.5));
+      rect(ctx, cam.sx(x + (i % 2) * 39), WORKSHOP_GROUND + i * 10, 1, 10,
+           mix(FLOORB[1], FLOORB[0], 0.5));
     }
   }
-  // a rag rug by the phone, because grandma made it
-  const rugX = cam.sx(40);
-  if (rugX > -120 && rugX < VIEW_W) {
-    for (let i = 0; i < 5; i++) {
-      const tone = ['#c04a4a', '#e8a33c', '#4f8be8', '#5cba48', '#c04a4a'][i];
-      rect(ctx, rugX, WORKSHOP_GROUND + 10 + i * 4, 96, 4, tone);
-    }
-    frame(ctx, rugX, WORKSHOP_GROUND + 10, 96, 20, SUN.wood0);
-  }
-  // sawdust drifted along the boards
+  // shavings and offcuts drifted across the boards
   const dust = rngFrom(3131);
-  for (let i = 0; i < 130; i++) {
+  for (let i = 0; i < 220; i++) {
     const sx = cam.sx(dust() * WORKSHOP_W);
     if (sx < 0 || sx > VIEW_W) continue;
-    px(ctx, sx, WORKSHOP_GROUND + 2 + Math.round(dust() * 8), dust() > 0.5 ? SUN.wood4 : PAL.paper2);
+    const sy = WORKSHOP_GROUND + 2 + Math.round(dust() * 60);
+    const roll = dust();
+    if (roll > 0.9) { rect(ctx, sx, sy, 3, 1, RAMPS.pine[4]); px(ctx, sx + 3, sy, RAMPS.pine[2]); }
+    else px(ctx, sx, sy, roll > 0.5 ? RAMPS.pine[4] : PAL.paper2);
   }
 }
 
-/** Two windows with real daylight behind them, and the beams they throw. */
+/** Windows, and the light they throw across the room. */
 function windows(ctx, t) {
-  for (const wx of [276, 440]) {
+  for (const wx of [140, 368]) {
     const sx = cam.sx(wx);
     if (sx < -90 || sx > VIEW_W + 90) continue;
-    const w = 56, h = 44, y = CEILING + 14;
-    // the valley outside: sky, hills, a hedge
-    rect(ctx, sx - w / 2, y, w, h, SUN.sky2);
-    rect(ctx, sx - w / 2, y, w, 14, SUN.sky1);
-    for (let i = 0; i < 4; i++) disc(ctx, sx - w / 2 + 8 + i * 14, y + 26, 9, SUN.grass1);
-    rect(ctx, sx - w / 2, y + h - 12, w, 12, SUN.grass2);
-    rect(ctx, sx - w / 2, y + h - 12, w, 2, SUN.grass3);
-    // frame and bars
-    frame(ctx, sx - w / 2 - 2, y - 2, w + 4, h + 4, SUN.wood2);
-    frame(ctx, sx - w / 2 - 3, y - 3, w + 6, h + 6, SUN.wood0);
-    rect(ctx, sx - 1, y, 2, h, SUN.wood2);
-    rect(ctx, sx - w / 2, y + h / 2 - 1, w, 2, SUN.wood2);
-    rect(ctx, sx - w / 2 - 6, y - 6, w + 12, 4, SUN.wood1);   // sill above
-    rect(ctx, sx - w / 2 - 6, y + h + 2, w + 12, 4, SUN.wood2);
-    rect(ctx, sx - w / 2 - 6, y + h + 2, w + 12, 1, SUN.wood4);
-    // a pot plant on the sill, and the light on the floor
-    disc(ctx, sx + w / 2 - 4, y + h - 2, 5, SUN.leaf2);
-    rect(ctx, sx + w / 2 - 7, y + h + 2, 7, 4, '#b5714f');
-    ctx.globalAlpha = 0.14;
+    const w = 52, h = 42, y = CEILING + 12;
+    // the valley outside
+    rect(ctx, sx - w / 2, y, w, h, '#8fd3ff');
+    rect(ctx, sx - w / 2, y, w, 16, '#5ab4ee');
+    for (let i = 0; i < 4; i++) disc(ctx, sx - w / 2 + 9 + i * 14, y + 28, 10, RAMPS.leafB[2]);
+    rect(ctx, sx - w / 2, y + h - 12, w, 12, RAMPS.grass[2]);
+    rect(ctx, sx - w / 2, y + h - 12, w, 2, RAMPS.grass[3]);
+    // painted frame with glazing bars
+    const paint = ramp('#2f7ab0');
+    glass(ctx, sx - w / 2, y, w, h, RAMPS.glass, {});
+    rect(ctx, sx - 1, y, 2, h, paint[3]);
+    rect(ctx, sx - w / 2, y + h / 2 - 1, w, 2, paint[3]);
+    boxFrame(ctx, sx - w / 2 - 2, y - 2, w + 4, h + 4, paint[2]);
+    rect(ctx, sx - w / 2 - 2, y - 2, w + 4, 1, paint[4]);
+    boxFrame(ctx, sx - w / 2 - 3, y - 3, w + 6, h + 6, RAMPS.walnut[0]);
+    plank(ctx, sx - w / 2 - 6, y + h + 3, w + 12, 5, RAMPS.walnut, { dir: 'h', knots: 0 });
+    // pots on the sill
+    ctx.drawImage(PROP.pottedPlant(2), sx - w / 2 - 2, y + h - 16);
+    ctx.drawImage(PROP.pottedPlant(1), sx + w / 2 - 16, y + h - 18);
+    // and the beam of light on the floor
+    ctx.globalAlpha = 0.15;
     ctx.fillStyle = '#fff0c0';
     ctx.beginPath();
     ctx.moveTo(sx - w / 2, y + h);
     ctx.lineTo(sx + w / 2, y + h);
-    ctx.lineTo(sx + w / 2 + 46, VIEW_H);
-    ctx.lineTo(sx - w / 2 + 20, VIEW_H);
+    ctx.lineTo(sx + w / 2 + 60, VIEW_H);
+    ctx.lineTo(sx - w / 2 + 24, VIEW_H);
     ctx.fill();
     ctx.globalAlpha = 1;
     const rng = rngFrom(700 + wx);
-    for (let i = 0; i < 20; i++) {
-      const bx = sx + rng() * 70 - 20;
-      const by = y + h + ((rng() * 100 + t * 7 + i * 4) % 100);
+    for (let i = 0; i < 24; i++) {
+      const bx = sx + rng() * 80 - 26;
+      const by = y + h + ((rng() * 110 + t * 8 + i * 4) % 110);
       px(ctx, Math.round(bx), Math.round(by), i % 3 ? PAL.paper2 : PAL.white);
     }
   }
 }
 
-/** The wall of tools over the benches, and the shelf your materials live on. */
-function toolWall(ctx, t) {
-  const sx = cam.sx(184);
-  if (sx > -110 && sx < VIEW_W + 110) {
-    // a pegboard, hung with the tools of the trade
-    rect(ctx, sx - 54, CEILING + 10, 108, 46, '#6b4423');
-    frame(ctx, sx - 54, CEILING + 10, 108, 46, SUN.wood0);
-    rect(ctx, sx - 54, CEILING + 10, 108, 2, SUN.wood3);
-    for (let i = 0; i < 4; i++) {
-      const hx = sx - 40 + i * 26;
-      rect(ctx, hx, CEILING + 22, 2, 20, SUN.wood3);        // handles
-      rect(ctx, hx - 5, CEILING + 17, 12, 6, PAL.stone2);   // heads
-      rect(ctx, hx - 5, CEILING + 17, 12, 2, PAL.stone3);
-    }
-    // a hand saw and a square, hung below
-    rect(ctx, sx - 40, CEILING + 46, 40, 3, PAL.stone2);
-    for (let k = 0; k < 40; k += 2) px(ctx, sx - 40 + k, CEILING + 49, PAL.stone3);
-    rect(ctx, sx + 12, CEILING + 44, 3, 12, SUN.wood3);
-    rect(ctx, sx + 12, CEILING + 53, 16, 3, SUN.wood3);
-  }
-  // the materials shelf, in the gap between the window and the bench
-  const mx = cam.sx(370);
-  if (mx > -110 && mx < VIEW_W + 110) {
-    rect(ctx, mx - 56, CEILING + 44, 112, 4, SUN.wood2);
-    rect(ctx, mx - 56, CEILING + 44, 112, 1, SUN.wood4);
-    rect(ctx, mx - 56, CEILING + 48, 112, 2, SUN.wood0);
-    const mats = story().materials;
-    Object.keys(MATERIALS).forEach((k, i) => {
-      const bx = mx - 50 + i * 22;
-      const n = Math.min(5, mats[k] || 0);
-      for (let s2 = 0; s2 < n; s2++) {
-        rect(ctx, bx, CEILING + 40 - s2 * 3, 15, 3, MATERIALS[k].tone);
-        rect(ctx, bx, CEILING + 40 - s2 * 3, 15, 1, 'rgba(255,255,255,0.35)');
-      }
-      text(ctx, String(mats[k] || 0), bx + 7, CEILING + 52, PAL.paper2, { align: 'center' });
-    });
+/** Lamps on the beams, and bunting between them. */
+function lights(ctx, t) {
+  ctx.drawImage(PROP.bunting(200), cam.sx(160), CEILING - 8);
+  ctx.drawImage(PROP.bunting(170), cam.sx(392), CEILING - 8);
+  for (const lx of [96, 244, 396, 520]) {
+    const sx = cam.sx(lx);
+    if (sx < -20 || sx > VIEW_W + 20) continue;
+    const sway = Math.sin(t * 0.9 + lx) * 2;
+    line(ctx, sx, CEILING - 8, sx + sway, CEILING + 6, PAL.ink2);
+    ctx.drawImage(PROP.lantern(false), Math.round(sx + sway) - 7, CEILING + 6);
+    ctx.globalAlpha = 0.06;
+    for (let i = 1; i <= 3; i++) disc(ctx, sx + sway, CEILING + 16, 12 + i * 10, '#f7cc55');
+    ctx.globalAlpha = 1;
   }
 }
 
-/** The bill, pinned up with grandma's photograph beside it. */
-function debtBoard(ctx, t) {
-  const sx = cam.sx(64);
-  if (sx < -90 || sx > VIEW_W + 90) return;
-  const s = story();
-  const y = CEILING + 12;
-  rect(ctx, sx - 44, y, 88, 52, '#7c5130');
-  frame(ctx, sx - 44, y, 88, 52, SUN.wood0);
-  rect(ctx, sx - 44, y, 88, 2, SUN.wood3);
-  // the photograph
-  rect(ctx, sx - 38, y + 6, 30, 26, PAL.paper);
-  frame(ctx, sx - 38, y + 6, 30, 26, SUN.wood2);
-  disc(ctx, sx - 23, y + 18, 7, '#a3805c');
-  disc(ctx, sx - 23, y + 16, 5, '#c9a678');
-  px(ctx, sx - 26, y + 16, PAL.ink);
-  px(ctx, sx - 20, y + 16, PAL.ink);
-  rect(ctx, sx - 27, y + 24, 9, 8, PAL.purple2);
-  disc(ctx, sx - 25, y + 10, 2, '#e6cb9c');
-  // the ledger
-  text(ctx, 'THE BILL', sx + 16, y + 6, PAL.gold2, { align: 'center' });
-  bar(ctx, sx - 2, y + 16, 38, 5, 1 - s.debt / HOSPITAL_BILL, PAL.grass3);
-  text(ctx, `${s.debt}`, sx + 16, y + 24, PAL.red2, { align: 'center' });
-  text(ctx, 'OWING', sx + 16, y + 33, PAL.paper3, { align: 'center' });
-  rect(ctx, sx - 38, y + 40, 76, 9, PAL.paper);
-  rect(ctx, sx - 38, y + 40, 76, 1, PAL.white);
-  text(ctx, `${s.money} ACORNS`, sx, y + 42, PAL.ink, { align: 'center' });
-}
-
-function phoneStation(ctx, t) {
+// ---------------------------------------------------------------- stations
+/** The phone corner: the bill on the wall, a rug, a stool, the telephone. */
+function phoneCorner(ctx, t) {
   const sx = cam.sx(64);
   const base = WORKSHOP_GROUND;
-  // a little side table with the phone on it
-  rect(ctx, sx - 16, base - 22, 32, 4, SUN.wood3);
-  rect(ctx, sx - 16, base - 22, 32, 1, SUN.wood4);
-  rect(ctx, sx - 13, base - 18, 4, 18, SUN.wood2);
-  rect(ctx, sx + 9, base - 18, 4, 18, SUN.wood2);
-  rect(ctx, sx - 11, base - 12, 22, 3, SUN.wood1);
-  // the telephone: a wooden box with a brass bell and a handset across the top
-  rect(ctx, sx - 10, base - 34, 20, 12, '#3f4650');
-  frame(ctx, sx - 10, base - 34, 20, 12, SUN.wood0);
-  rect(ctx, sx - 8, base - 32, 16, 5, '#5a6470');
-  px(ctx, sx - 6, base - 30, PAL.gold2);
-  disc(ctx, sx + 6, base - 36, 3, PAL.gold);
   const s = story();
+  if (sx > -140 && sx < VIEW_W + 140) {
+    // grandma's photograph and the bill, pinned side by side
+    const bw = 88, by = CEILING + 8;
+    plank(ctx, sx - 44, by, bw, 52, RAMPS.walnut, { dir: 'h', knots: 1 });
+    boxFrame(ctx, sx - 44, by, bw, 52, RAMPS.walnut[0]);
+    ctx.drawImage(PROP.picture(1), sx - 40, by + 3);
+    text(ctx, 'THE BILL', sx + 20, by + 5, PAL.gold2, { align: 'center' });
+    bar(ctx, sx - 4, by + 16, 40, 5, 1 - s.debt / HOSPITAL_BILL, PAL.grass3);
+    text(ctx, `${s.debt}`, sx + 16, by + 25, PAL.red2, { align: 'center' });
+    text(ctx, 'OWING', sx + 16, by + 34, PAL.paper3, { align: 'center' });
+    rect(ctx, sx - 40, by + 42, 80, 9, PAL.paper);
+    rect(ctx, sx - 40, by + 42, 80, 1, PAL.white);
+    text(ctx, `${s.money} ACORNS`, sx, by + 44, PAL.ink, { align: 'center' });
+  }
+  // the rug, a stool, a broom in the corner
+  ctx.drawImage(PROP.rug(84, 26, '#a8404a'), cam.sx(24), base + 12);
+  ctx.drawImage(PROP.stool(), cam.sx(96), base - 20);
+  ctx.drawImage(PROP.broom(), cam.sx(14), base - 34);
+  ctx.drawImage(PROP.pottedPlant(0), cam.sx(112), base - 26);
+  // the telephone on its little table
+  plank(ctx, sx - 18, base - 24, 36, 5, RAMPS.oak, { dir: 'h', knots: 0 });
+  plank(ctx, sx - 14, base - 19, 5, 19, RAMPS.walnut, { dir: 'v', knots: 0 });
+  plank(ctx, sx + 9, base - 19, 5, 19, RAMPS.walnut, { dir: 'v', knots: 0 });
+  plank(ctx, sx - 12, base - 12, 24, 4, RAMPS.walnut, { dir: 'h', knots: 0 });
+  plank(ctx, sx - 11, base - 38, 22, 14, RAMPS.walnut, { dir: 'h', knots: 0 });
+  boxFrame(ctx, sx - 11, base - 38, 22, 14, RAMPS.walnut[0]);
+  metal(ctx, sx - 8, base - 35, 16, 5, RAMPS.brass);
+  disc(ctx, sx + 7, base - 40, 3, RAMPS.brass[3]);
   const ring = s.offers.length ? Math.floor(t * 7) % 2 : 0;
-  rect(ctx, sx - 12, base - 39 - ring, 24, 4, PAL.ink2);
-  rect(ctx, sx - 12, base - 39 - ring, 24, 1, '#4a4a52');
+  metal(ctx, sx - 13, base - 43 - ring, 26, 4, RAMPS.iron);
   if (s.offers.length) {
     for (let i = 1; i <= 3; i++) {
       ctx.globalAlpha = 0.55 - i * 0.13;
-      const r = 7 + i * 5 + (Math.sin(t * 9) + 1) * 1.5;
+      const r = 8 + i * 5 + (Math.sin(t * 9) + 1) * 1.5;
       for (let a = -1.1; a <= 1.1; a += 0.22) {
-        px(ctx, Math.round(sx + Math.cos(a - 1.6) * r), Math.round(base - 41 + Math.sin(a - 1.6) * r), PAL.gold2);
+        px(ctx, Math.round(sx + Math.cos(a - 1.6) * r), Math.round(base - 45 + Math.sin(a - 1.6) * r),
+           PAL.gold2);
       }
       ctx.globalAlpha = 1;
     }
-    text(ctx, `${s.offers.length} WAITING`, sx, base - 52, PAL.gold2, { align: 'center', shadow: PAL.ink });
+    text(ctx, `${s.offers.length} WAITING`, sx, base - 58, PAL.gold2, { align: 'center', shadow: PAL.ink });
   }
 }
 
+/** The saw bench: trestles, a log in the cradle, planks stacked, tools over it. */
 function sawStation(ctx, t) {
   const sx = cam.sx(184);
   const base = WORKSHOP_GROUND;
-  // trestle bench, two tiles long
-  rect(ctx, sx - 34, base - 26, 68, 6, SUN.wood3);
-  rect(ctx, sx - 34, base - 26, 68, 2, SUN.wood4);
-  rect(ctx, sx - 30, base - 20, 6, 20, SUN.wood2);
-  rect(ctx, sx + 24, base - 20, 6, 20, SUN.wood2);
-  rect(ctx, sx - 26, base - 12, 52, 3, SUN.wood1);
-  // a log in the cradle if there is one to cut
-  if ((story().materials.hardwood || 0) > 0) {
-    rect(ctx, sx - 26, base - 34, 52, 9, SUN.wood2);
-    rect(ctx, sx - 26, base - 34, 52, 3, SUN.wood3);
-    rect(ctx, sx - 26, base - 27, 52, 2, SUN.wood0);
-    for (let r = 4; r > 0; r--) disc(ctx, sx + 26, base - 29, r, r % 2 ? SUN.wood3 : SUN.wood4);
+  // pegboard of tools above the bench
+  if (sx > -120 && sx < VIEW_W + 120) {
+    const bx = sx + 38;    // over the bench, clear of the window
+    plankWall(ctx, bx - 44, CEILING + 8, 88, 46, RAMPS.walnut, { step: 22, dir: 'v' });
+    boxFrame(ctx, bx - 44, CEILING + 8, 88, 46, RAMPS.walnut[0]);
+    rect(ctx, bx - 44, CEILING + 8, 88, 1, RAMPS.walnut[4]);
+    ctx.drawImage(PROP.tool('saw'), bx - 38, CEILING + 12);
+    ctx.drawImage(PROP.tool('square'), bx - 2, CEILING + 12);
+    ctx.drawImage(PROP.tool('plane'), bx + 18, CEILING + 14);
+    ctx.drawImage(PROP.tool('chisel'), bx - 36, CEILING + 30);
+    ctx.drawImage(PROP.tool('mallet'), bx - 24, CEILING + 28);
+    ctx.drawImage(PROP.tool('axe'), bx - 8, CEILING + 26);
+    ctx.drawImage(PROP.tool('brace'), bx + 14, CEILING + 30);
   }
-  // the frame saw leaning against the bench end
-  rect(ctx, sx + 32, base - 30, 3, 30, SUN.wood2);
-  rect(ctx, sx + 26, base - 32, 14, 3, PAL.stone2);
-  for (let k = 0; k < 14; k += 2) px(ctx, sx + 26 + k, base - 29, PAL.stone3);
-  // planks stacked against the wall
-  const planks = Math.min(6, story().materials.plank || 0);
+  // the bench
+  plank(ctx, sx - 36, base - 28, 72, 7, RAMPS.oak, { dir: 'h', knots: 1 });
+  for (const lx of [sx - 32, sx + 24]) {
+    plank(ctx, lx, base - 21, 8, 21, RAMPS.walnut, { dir: 'v', knots: 0 });
+    plank(ctx, lx - 3, base - 12, 14, 4, RAMPS.walnut, { dir: 'h', knots: 0 });
+  }
+  // a log waiting to be cut
+  if ((story().materials.hardwood || 0) > 0) {
+    const lg = N.log(0, 60);
+    ctx.drawImage(lg, sx - 30, base - 28 - lg.height + 4);
+  }
+  // stacked planks and an offcut bin
+  const planks = Math.min(7, story().materials.plank || 0);
   for (let i = 0; i < planks; i++) {
-    rect(ctx, sx - 56, base - 3 - i * 4, 22, 3, SUN.wood4);
-    rect(ctx, sx - 56, base - 3 - i * 4, 22, 1, PAL.paper2);
+    plank(ctx, sx - 66, base - 4 - i * 5, 26, 4, RAMPS.pine, { dir: 'h', knots: 0, seed: 9 + i });
+  }
+  ctx.drawImage(PROP.crate('timber'), cam.sx(232), base - 22);
+  ctx.drawImage(PROP.bucket(false), cam.sx(150), base - 18);
+  // a drift of shavings under the bench
+  const rng = rngFrom(88);
+  for (let i = 0; i < 70; i++) {
+    const px0 = sx - 40 + rng() * 80;
+    rect(ctx, px0, base + 2 + rng() * 8, 2, 1, rng() > 0.5 ? RAMPS.pine[4] : PAL.paper2);
   }
 }
 
+/** The assembly bench: vice, jars of fixings, finished pieces, a shelf. */
 function benchStation(ctx, t) {
   const sx = cam.sx(304);
   const base = WORKSHOP_GROUND;
-  rect(ctx, sx - 36, base - 28, 72, 7, SUN.wood3);
-  rect(ctx, sx - 36, base - 28, 72, 2, SUN.wood4);
-  rect(ctx, sx - 32, base - 21, 7, 21, SUN.wood2);
-  rect(ctx, sx + 25, base - 21, 7, 21, SUN.wood2);
-  // a vice, and jars of fixings on the bench top
-  rect(ctx, sx + 12, base - 35, 18, 7, PAL.stone1);
-  rect(ctx, sx + 12, base - 32, 18, 2, PAL.stone0);
-  for (let i = 0; i < 3; i++) {
-    rect(ctx, sx - 30 + i * 10, base - 36, 8, 8, '#a3ddfa');
-    rect(ctx, sx - 30 + i * 10, base - 36, 8, 2, '#cdeeff');
-    for (let k = 0; k < 3; k++) px(ctx, sx - 28 + i * 10 + k, base - 30, PAL.stone3);
+  if (sx > -140 && sx < VIEW_W + 140) {
+    ctx.drawImage(PROP.shelf(84, 'jars'), sx - 60, CEILING + 10);
+    ctx.drawImage(PROP.shelf(66, 'books'), sx - 50, CEILING + 38);
+    ctx.drawImage(PROP.picture(2), sx + 30, CEILING + 12);
   }
-  // finished pieces lined up along the wall, ready to go out
+  plank(ctx, sx - 40, base - 30, 80, 8, RAMPS.oak, { dir: 'h', knots: 1 });
+  for (const lx of [sx - 36, sx + 28]) {
+    plank(ctx, lx, base - 22, 8, 22, RAMPS.walnut, { dir: 'v', knots: 0 });
+  }
+  plank(ctx, sx - 32, base - 14, 64, 4, RAMPS.walnut, { dir: 'h', knots: 0 });
+  // the vice, bolted to the end
+  metal(ctx, sx + 14, base - 38, 20, 8, RAMPS.iron);
+  metal(ctx, sx + 16, base - 30, 16, 3, RAMPS.iron);
+  disc(ctx, sx + 34, base - 34, 3, RAMPS.iron[3]);
+  // jars of screws and a mallet left on the bench
+  ctx.drawImage(PROP.jar('#9aa2ad'), sx - 34, base - 44);
+  ctx.drawImage(PROP.jar('#c69a3c'), sx - 22, base - 44);
+  ctx.drawImage(PROP.tool('hammer'), sx - 6, base - 50);
+  // finished pieces, lined up along the wall to go out
   const done = story().furniture.slice(0, 3);
-  done.forEach((f, i) => drawFurniture(ctx, f.id, sx + 56 + i * 30, base, { scale: 1 }));
+  done.forEach((f, i) => drawFurniture(ctx, f.id, sx + 62 + i * 30, base, { scale: 1 }));
   if (done.length) {
-    text(ctx, `${story().furniture.length} READY`, sx + 70, base - 46, PAL.gold2,
+    text(ctx, `${story().furniture.length} READY`, sx + 76, base - 48, PAL.gold2,
          { align: 'center', shadow: PAL.ink });
   }
+  ctx.drawImage(PROP.sack('#d8c79a'), cam.sx(268), base - 24);
+  ctx.drawImage(PROP.barrel('open'), cam.sx(346), base - 28);
 }
 
+/** The map table, the heron perch, and the materials shelf. */
 function mapStation(ctx, t) {
   const sx = cam.sx(424);
   const base = WORKSHOP_GROUND;
-  // a slanted drawing table with the valley pinned to it
-  rect(ctx, sx - 26, base - 26, 52, 7, SUN.wood2);
-  rect(ctx, sx - 24, base - 32, 48, 7, PAL.paper2);
-  rect(ctx, sx - 24, base - 32, 48, 2, PAL.paper);
-  line(ctx, sx - 22, base - 28, sx + 22, base - 30, '#4aa3e0');
-  for (let i = 0; i < 4; i++) px(ctx, sx - 16 + i * 11, base - 29, PAL.red);
-  rect(ctx, sx - 22, base - 19, 6, 19, SUN.wood1);
-  rect(ctx, sx + 16, base - 19, 6, 19, SUN.wood1);
-  // the heron on its perch by the door, waiting to be asked
+  if (sx > -140 && sx < VIEW_W + 140) {
+    // the materials shelf, with what you have on it
+    plank(ctx, sx - 48, CEILING + 44, 104, 5, RAMPS.oak, { dir: 'h', knots: 0 });
+    rect(ctx, sx - 48, CEILING + 44, 104, 1, RAMPS.oak[4]);
+    const mats = story().materials;
+    Object.keys(MATERIALS).forEach((k, i) => {
+      const bx = sx - 44 + i * 20;
+      const n = Math.min(5, mats[k] || 0);
+      for (let s2 = 0; s2 < n; s2++) {
+        rect(ctx, bx, CEILING + 40 - s2 * 3, 14, 3, MATERIALS[k].tone);
+        rect(ctx, bx, CEILING + 40 - s2 * 3, 14, 1, 'rgba(255,255,255,0.4)');
+      }
+      text(ctx, String(mats[k] || 0), bx + 7, CEILING + 50, PAL.paper2, { align: 'center' });
+    });
+    // a map of the valley pinned above it
+    plank(ctx, sx - 40, CEILING + 8, 80, 30, ramp('#d8c79a'), { dir: 'h', knots: 0 });
+    boxFrame(ctx, sx - 40, CEILING + 8, 80, 30, RAMPS.walnut[1]);
+    for (let i = 0; i < 22; i++) {
+      px(ctx, sx - 36 + i * 3, CEILING + 20 + Math.round(Math.sin(i * 0.5) * 5), '#3f8fc4');
+    }
+    for (let i = 0; i < 5; i++) px(ctx, sx - 30 + i * 15, CEILING + 14 + (i % 3) * 6, PAL.red);
+  }
+  // the table
+  plank(ctx, sx - 28, base - 28, 56, 7, RAMPS.oak, { dir: 'h', knots: 1 });
+  plank(ctx, sx - 26, base - 34, 52, 7, ramp('#e8d8a8'), { dir: 'h', knots: 0 });
+  for (let i = 0; i < 16; i++) {
+    px(ctx, sx - 22 + i * 3, base - 31 + Math.round(Math.sin(i * 0.6) * 2), '#3f8fc4');
+  }
+  for (const lx of [sx - 24, sx + 18]) plank(ctx, lx, base - 21, 7, 21, RAMPS.walnut, { dir: 'v', knots: 0 });
+  // the heron, dozing on its perch
   const heron = S.heronSideSprite(Math.floor(t * 1.1) % 2);
-  ctx.drawImage(heron, sx + 34, base - heron.height + 1);
-  rect(ctx, sx + 30, base - 3, 34, 3, SUN.wood1);
-  rect(ctx, sx + 30, base - 3, 34, 1, SUN.wood3);
+  ctx.drawImage(heron, sx + 38, base - heron.height + 1);
+  plank(ctx, sx + 32, base - 4, 40, 4, RAMPS.walnut, { dir: 'h', knots: 0 });
+  contact(ctx, sx + 52, base + 1, 18, 2, 0.3);
+  ctx.drawImage(PROP.ladder(64), cam.sx(482), CEILING + 56);
 }
 
+/** The back door, standing open on the timber. */
 function doorway(ctx, t) {
-  const sx = cam.sx(550);
+  const sx = cam.sx(552);
   const base = WORKSHOP_GROUND;
-  const w = 44, h = 62;
-  // the open back door, with the bright outside showing through it
-  rect(ctx, sx - w / 2 - 4, base - h - 6, w + 8, h + 6, SUN.wood1);
-  rect(ctx, sx - w / 2 - 4, base - h - 6, w + 8, 4, SUN.wood3);
-  rect(ctx, sx - w / 2, base - h, w, h, SUN.sky2);
-  rect(ctx, sx - w / 2, base - h, w, 18, SUN.sky1);
-  for (let i = 0; i < 3; i++) disc(ctx, sx - w / 2 + 8 + i * 14, base - h + 30, 10, SUN.leaf1);
-  rect(ctx, sx - w / 2, base - 22, w, 22, SUN.grass2);
-  rect(ctx, sx - w / 2, base - 22, w, 2, SUN.grass3);
-  for (let i = 0; i < 8; i++) px(ctx, sx - w / 2 + 3 + i * 5, base - 24, SUN.grass4);
-  frame(ctx, sx - w / 2, base - h, w, h, SUN.wood0);
-  // the door itself, swung back against the wall
-  rect(ctx, sx + w / 2 + 4, base - h, 8, h, SUN.wood2);
-  rect(ctx, sx + w / 2 + 4, base - h, 2, h, SUN.wood3);
-  // daylight on the boards
-  ctx.globalAlpha = 0.16;
+  const w = 50, h = 70;
+  plank(ctx, sx - w / 2 - 5, base - h - 8, w + 10, h + 8, RAMPS.walnut, { dir: 'v', knots: 1 });
+  // the outside, bright
+  rect(ctx, sx - w / 2, base - h, w, h, '#8fd3ff');
+  rect(ctx, sx - w / 2, base - h, w, 20, '#5ab4ee');
+  for (let i = 0; i < 3; i++) {
+    const tr = N.treeTop(i, 0.4);
+    ctx.drawImage(tr, sx - w / 2 - 6 + i * 18, base - h + 14);
+  }
+  rect(ctx, sx - w / 2, base - 26, w, 26, RAMPS.grass[2]);
+  rect(ctx, sx - w / 2, base - 26, w, 2, RAMPS.grass[3]);
+  for (let i = 0; i < 10; i++) px(ctx, sx - w / 2 + 3 + i * 5, base - 28, RAMPS.grass[4]);
+  boxFrame(ctx, sx - w / 2, base - h, w, h, RAMPS.walnut[0]);
+  // the door swung back inside, and the daylight on the boards
+  plank(ctx, sx + w / 2 + 6, base - h, 9, h, ramp('#c0392b'), { dir: 'v', knots: 0 });
+  ctx.globalAlpha = 0.18;
   ctx.fillStyle = '#fff0c0';
   ctx.beginPath();
   ctx.moveTo(sx - w / 2, base);
   ctx.lineTo(sx + w / 2, base);
-  ctx.lineTo(sx + w / 2 - 30, VIEW_H);
-  ctx.lineTo(sx - w / 2 - 70, VIEW_H);
+  ctx.lineTo(sx + w / 2 - 40, VIEW_H);
+  ctx.lineTo(sx - w / 2 - 90, VIEW_H);
   ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.drawImage(PROP.firewood(40, 26), cam.sx(508), base - 30);
+  ctx.drawImage(PROP.wallHook('apron'), cam.sx(590), CEILING + 54);
 }
 
-/** Grandpa, leaning by the bench with whatever he is telling you today. */
+/** Grandpa, and whatever he is telling you today. */
 function grandpa(ctx, t) {
   const sx = cam.sx(GRANDPA_X);
   const base = WORKSHOP_GROUND;
@@ -347,13 +365,13 @@ function grandpa(ctx, t) {
   const img = elder('idle', Math.floor(t * 1.5) % 4);
   ctx.drawImage(img, sx - (img.width >> 1), base - img.height + 2);
 
-  const near = Math.abs(G.player.x - GRANDPA_X) < 96;
+  // he holds his tongue while you are standing at a bench, so his note never
+  // covers the prompt telling you what the bench does
+  const atStation = !!nearestWorkStation(G.player.x);
+  const near = Math.abs(G.player.x - GRANDPA_X) < 96 && !atStation;
   if (!near) {
-    // out of earshot: just a quiet puff of thought
     const puff = Math.floor(t * 1.2) % 3;
-    for (let i = 0; i <= puff; i++) {
-      disc(ctx, sx + 10 + i * 5, base - img.height - 4 - i * 4, 1 + i, PAL.paper2);
-    }
+    for (let i = 0; i <= puff; i++) disc(ctx, sx + 10 + i * 5, base - img.height - 4 - i * 4, 1 + i, PAL.paper2);
     return;
   }
   const step = tutorialStep();
@@ -362,12 +380,11 @@ function grandpa(ctx, t) {
   const lines = wrap(line, 128);
   const w = 136, h = 9 + lines.length * 9;
   const bx = Math.max(4, Math.min(VIEW_W - w - 4, sx - w / 2));
-  const by = base - img.height - h - 6;
-  // a paper speech note, pinned in the air
-  rect(ctx, bx + 1, by + 1, w, h, 'rgba(0,0,0,0.25)');
+  const by = base - img.height - h - 26;
+  rect(ctx, bx + 1, by + 1, w, h, 'rgba(0,0,0,0.3)');
   rect(ctx, bx, by, w, h, PAL.paper);
   rect(ctx, bx, by, w, 1, PAL.white);
-  frame(ctx, bx, by, w, h, SUN.wood0);
+  boxFrame(ctx, bx, by, w, h, RAMPS.walnut[1]);
   lines.forEach((ln, i) => text(ctx, ln, bx + 5, by + 4 + i * 9, PAL.ink));
   for (let i = 0; i < 4; i++) px(ctx, sx - 2 + i, by + h + i, PAL.paper);
 }
@@ -381,34 +398,41 @@ const GRANDPA_IDLE = [
 ];
 
 // -------------------------------------------------------------------- draw
+/** Things left on the floor - what stops the boards reading as an empty apron. */
+function floorClutter(ctx, t) {
+  const base = WORKSHOP_GROUND;
+  ctx.drawImage(PROP.rug(96, 28, '#3f7a86'), cam.sx(196), base + 34);
+  ctx.drawImage(PROP.crate('apples'), cam.sx(120), base + 30);
+  ctx.drawImage(PROP.barrel('closed'), cam.sx(352), base + 26);
+  ctx.drawImage(PROP.sack('#c2a35c'), cam.sx(388), base + 32);
+  ctx.drawImage(PROP.stool(), cam.sx(300), base + 40);
+  ctx.drawImage(PROP.bucket(true), cam.sx(462), base + 38);
+  ctx.drawImage(PROP.pottedPlant(1), cam.sx(38), base + 30);
+  ctx.drawImage(PROP.firewood(34, 18), cam.sx(514), base + 40);
+  // offcuts and shavings swept into heaps
+  const rng = rngFrom(6161);
+  for (let i = 0; i < 160; i++) {
+    const sx = cam.sx(rng() * WORKSHOP_W);
+    if (sx < 0 || sx > VIEW_W) continue;
+    const sy = base + 20 + rng() * 60;
+    const roll = rng();
+    if (roll > 0.93) { plank(ctx, sx, sy, 10, 3, RAMPS.pine, { dir: 'h', knots: 0, seed: i }); }
+    else if (roll > 0.8) { rect(ctx, sx, sy, 3, 1, RAMPS.pine[4]); }
+    else px(ctx, sx, sy, roll > 0.4 ? RAMPS.pine[4] : PAL.paper2);
+  }
+}
+
 export function drawWorkshop(ctx, t) {
-  wallAndFloor(ctx, t);
+  shell(ctx, t);
   windows(ctx, t);
-  toolWall(ctx, t);
-  debtBoard(ctx, t);
-  phoneStation(ctx, t);
+  phoneCorner(ctx, t);
   sawStation(ctx, t);
   benchStation(ctx, t);
   mapStation(ctx, t);
   doorway(ctx, t);
+  floorClutter(ctx, t);
+  lights(ctx, t);
   grandpa(ctx, t);
-
-  // two lamps on the beams, swinging a little
-  for (const lx of [140, 380]) {
-    const sx = cam.sx(lx);
-    if (sx < -20 || sx > VIEW_W + 20) continue;
-    const sway = Math.sin(t * 0.9 + lx) * 2;
-    line(ctx, sx, CEILING - 6, sx + sway, CEILING + 8, PAL.ink2);
-    // a tin shade with the bulb glowing under it
-    rect(ctx, sx + sway - 9, CEILING + 8, 18, 3, PAL.stone2);
-    rect(ctx, sx + sway - 7, CEILING + 11, 14, 3, PAL.stone1);
-    rect(ctx, sx + sway - 9, CEILING + 8, 18, 1, PAL.stone3);
-    disc(ctx, sx + sway, CEILING + 15, 3, PAL.gold2);
-    px(ctx, sx + sway, CEILING + 15, PAL.white);
-    ctx.globalAlpha = 0.05;
-    for (let i = 1; i <= 3; i++) disc(ctx, sx + sway, CEILING + 16, 10 + i * 8, PAL.gold2);
-    ctx.globalAlpha = 1;
-  }
 }
 
 export function drawWorkshopHud(ctx, t) {
