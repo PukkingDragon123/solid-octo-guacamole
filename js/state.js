@@ -127,7 +127,7 @@ const SAVED_KEYS = [
   'seed', 'tiles', 'entities', 'beavers', 'jobs', 'nextId', 'resources', 'caps',
   'time', 'day', 'dayT', 'waterLevel', 'riverBlocked', 'riseTimer', 'lodge',
   'crewCap', 'requests', 'housed', 'animalPool', 'stats', 'won', 'clutter',
-  'mode', 'player', 'rider',
+  'mode', 'player', 'rider', 'story', 'forest',
 ];
 
 export function saveGame() {

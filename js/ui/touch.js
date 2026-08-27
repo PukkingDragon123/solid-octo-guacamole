@@ -26,7 +26,18 @@ function layout(mode, overlayOpen) {
     // only a close button while a panel is up; the panel itself is tappable
     return [{ id: 'close', key: 'KeyE', x: VIEW_W - R - 8, y: R + 22, glyph: 'x' }];
   }
-  if (mode === 'camp') {
+  if (mode === 'site') {
+    // eight ways to walk, plus the one button that picks up and fits
+    return [
+      { id: 'left', key: 'ArrowLeft', x: R + 8, y: bottom - R - 4, glyph: 'left' },
+      { id: 'right', key: 'ArrowRight', x: R * 3 + 16, y: bottom - R - 4, glyph: 'right' },
+      { id: 'up', key: 'ArrowUp', x: R * 2 + 12, y: bottom - R * 2 - 12, glyph: 'up' },
+      { id: 'down', key: 'ArrowDown', x: R * 2 + 12, y: bottom + 2, glyph: 'down' },
+      { id: 'plan', key: 'KeyB', x: VIEW_W - R * 3 - 16, y: bottom - R - 4, glyph: 'tools' },
+      { id: 'use', key: 'KeyE', x: VIEW_W - R - 8, y: bottom - R * 2 - 10, glyph: 'use', big: true },
+    ];
+  }
+  if (mode === 'camp' || mode === 'workshop' || mode === 'forest') {
     return [
       { id: 'left', key: 'ArrowLeft', x: R + 10, y: bottom, glyph: 'left' },
       { id: 'right', key: 'ArrowRight', x: R * 3 + 18, y: bottom, glyph: 'right' },

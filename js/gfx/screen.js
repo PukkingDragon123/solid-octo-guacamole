@@ -24,7 +24,13 @@ export function initScreen(canvas) {
 export function resize() {
   const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   const pad = touch ? 0 : 8;
-  const exact = Math.min((window.innerWidth - pad) / VIEW_W, (window.innerHeight - pad) / VIEW_H);
+  // A host page can reserve room for its own chrome around the game - the
+  // single-file build embeds the canvas under a title bar and a key legend.
+  const fit = window.__DAMIT_FIT || {};
+  const padY = fit.padY || 0;
+  const padX = fit.padX || 0;
+  const exact = Math.min((window.innerWidth - pad - padX) / VIEW_W,
+                         (window.innerHeight - pad - padY) / VIEW_H);
   // Whole-number scaling keeps pixels square, but a phone screen is rarely a
   // whole multiple of 480x270 — there, filling the glass matters more.
   const scale = exact >= 2 ? Math.floor(exact) : Math.max(0.5, exact);
