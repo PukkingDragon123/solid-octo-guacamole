@@ -15,6 +15,8 @@ import { keyPrompt, bar } from '../ui/widgets.js';
 import { story, MATERIALS, HOSPITAL_BILL, tutorialStep, TUTORIAL } from '../story.js';
 import { drawFurniture } from '../gfx/furniture.js';
 import { elder, SUN } from '../gfx/actors.js';
+import { RAMPS, ramp, mix, contact, ao, plank, plankWall, cloth, metal, glass, stonework,
+         soilBand, speck } from '../gfx/paint.js';
 
 export const WORKSHOP_W = 600;
 export const WORKSHOP_GROUND = 200;
@@ -45,41 +47,40 @@ export function nearestWorkStation(px0) {
 // ------------------------------------------------------------------ pieces
 function wallAndFloor(ctx, t) {
   // roof space above the beams, then the wall, then the floor
-  rect(ctx, 0, 0, VIEW_W, CEILING, '#3f2a1b');
-  rect(ctx, 0, CEILING - 6, VIEW_W, 6, SUN.wood1);
-  rect(ctx, 0, CEILING - 6, VIEW_W, 2, SUN.wood3);
+  rect(ctx, 0, 0, VIEW_W, CEILING, '#2f2018');
+  speck(ctx, 0, 0, VIEW_W, CEILING - 6, ['#3a281c', '#241a14'], 260, 5);
+  plank(ctx, 0, CEILING - 7, VIEW_W, 8, RAMPS.walnut, { dir: 'h', knots: 1 });
   // rafters, receding into the dark
-  for (let x = Math.floor(cam.x / 48) * 48; x < cam.x + VIEW_W + 48; x += 48) {
-    const sx = cam.sx(x);
-    rect(ctx, sx, 0, 4, CEILING - 6, '#4d3524');
-    rect(ctx, sx, 0, 1, CEILING - 6, '#5f4229');
-  }
-
-  // the wall: horizontal boards, lit from the windows
-  rect(ctx, 0, CEILING, VIEW_W, WORKSHOP_GROUND - CEILING, SUN.wall1);
-  for (let y = CEILING; y < WORKSHOP_GROUND; y += T) {
-    rect(ctx, 0, y, VIEW_W, 1, SUN.wall2);
-    rect(ctx, 0, y + T - 1, VIEW_W, 1, SUN.wall0);
-  }
-  // uprights every four tiles, so the boards have something to sit on
-  for (let x = Math.floor(cam.x / (T * 4)) * T * 4; x < cam.x + VIEW_W + T * 4; x += T * 4) {
-    const sx = cam.sx(x);
-    rect(ctx, sx, CEILING, 5, WORKSHOP_GROUND - CEILING, SUN.wood1);
-    rect(ctx, sx, CEILING, 1, WORKSHOP_GROUND - CEILING, SUN.wood3);
-    rect(ctx, sx + 4, CEILING, 1, WORKSHOP_GROUND - CEILING, SUN.wood0);
-  }
-  // skirting
-  rect(ctx, 0, WORKSHOP_GROUND - 5, VIEW_W, 5, SUN.wood1);
-  rect(ctx, 0, WORKSHOP_GROUND - 5, VIEW_W, 1, SUN.wood3);
-
-  // floorboards
-  rect(ctx, 0, WORKSHOP_GROUND, VIEW_W, VIEW_H - WORKSHOP_GROUND, SUN.floor1);
-  for (let y = WORKSHOP_GROUND + 6; y < VIEW_H; y += 9) {
-    rect(ctx, 0, y, VIEW_W, 1, SUN.floor0);
-    rect(ctx, 0, y + 1, VIEW_W, 1, SUN.floor2);
-  }
   for (let x = Math.floor(cam.x / 52) * 52; x < cam.x + VIEW_W + 52; x += 52) {
-    line(ctx, cam.sx(x), WORKSHOP_GROUND, cam.sx(x) - 18, VIEW_H, SUN.floor0);
+    const sx = cam.sx(x);
+    plank(ctx, sx, 0, 5, CEILING - 6, RAMPS.walnut, { dir: 'v', knots: 0 });
+    ctx.globalAlpha = 0.3;
+    rect(ctx, sx, 0, 5, CEILING - 6, '#1b1424');
+    ctx.globalAlpha = 1;
+  }
+
+  // the wall: boarded, with studs and a lit top rail
+  plankWall(ctx, 0, CEILING, VIEW_W, WORKSHOP_GROUND - CEILING, ramp('#7c5233'),
+            { step: 21, dir: 'v' });
+  ctx.globalAlpha = 0.28;
+  rect(ctx, 0, CEILING, VIEW_W, 10, '#1b1424');
+  ctx.globalAlpha = 1;
+  for (let x = Math.floor(cam.x / (T * 5)) * T * 5; x < cam.x + VIEW_W + T * 5; x += T * 5) {
+    plank(ctx, cam.sx(x), CEILING, 6, WORKSHOP_GROUND - CEILING, RAMPS.oak, { dir: 'v', knots: 1 });
+  }
+  plank(ctx, 0, WORKSHOP_GROUND - 7, VIEW_W, 8, RAMPS.walnut, { dir: 'h', knots: 0 });
+
+  // floorboards, running away with a lit edge each
+  for (let i = 0; i < 8; i++) {
+    plank(ctx, -20, WORKSHOP_GROUND + i * 10, VIEW_W + 40, 10, RAMPS.pine,
+          { dir: 'h', seed: 200 + i, knots: i % 3 === 0 ? 1 : 0 });
+  }
+  // board ends, staggered like real flooring
+  for (let x = Math.floor(cam.x / 74) * 74; x < cam.x + VIEW_W + 74; x += 74) {
+    for (let i = 0; i < 8; i++) {
+      const sx = cam.sx(x + (i % 2) * 37);
+      rect(ctx, sx, WORKSHOP_GROUND + i * 10, 1, 10, mix(RAMPS.pine[1], RAMPS.pine[0], 0.5));
+    }
   }
   // a rag rug by the phone, because grandma made it
   const rugX = cam.sx(40);

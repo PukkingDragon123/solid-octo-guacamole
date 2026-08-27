@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DAM IT - asset sheet</title>
+<style>
+  body { margin: 0; background: #1b1a24; color: #d7c9a8; font: 12px ui-monospace, Menlo, monospace; }
+  h2 { margin: 18px 12px 6px; font-size: 13px; letter-spacing: 2px; color: #f7cc55; font-weight: 400; }
+  canvas { image-rendering: pixelated; display: block; margin: 0 12px 8px; background: #2b2a38; }
+</style>
+</head>
+<body>
+<div id="sheets"></div>
+<script type="module">
+import { surface, text } from '../js/gfx/pixel.js';
+import * as N from '../js/gfx/nature.js';
+import * as S from '../js/gfx/structures.js';
+import * as A from '../js/gfx/actors.js';
+import { RAMPS } from '../js/gfx/paint.js';
+
+const host = document.getElementById('sheets');
+const SCALE = 2;
+
+/** Lay a row of sprites out on one canvas, labelled. */
+function sheet(title, items, opts = {}) {
+  const pad = 10;
+  const h = Math.max(...items.map((i) => i.img.height)) + 26;
+  const w = items.reduce((sum, i) => sum + i.img.width + pad, pad);
+  const el = document.createElement('canvas');
+  el.width = w * SCALE;
+  el.height = h * SCALE;
+  el.style.width = `${w * SCALE}px`;
+  const ctx = el.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(SCALE, SCALE);
+  if (opts.bg) { ctx.fillStyle = opts.bg; ctx.fillRect(0, 0, w, h); }
+  let x = pad;
+  for (const it of items) {
+    ctx.drawImage(it.img, x, 16 + (h - 26 - it.img.height));
+    text(ctx, it.label, x, 4, '#a89878');
+    x += it.img.width + pad;
+  }
+  const head = document.createElement('h2');
+  head.textContent = title;
+  host.appendChild(head);
+  host.appendChild(el);
+}
+
+// ---- nature
+sheet('TREES - GROWN', N.TREES.map((t, i) => ({ img: N.tree(i, 1, 0.5), label: t.id })), { bg: '#8fd3ff' });
+sheet('TREES - GROWING', [0.25, 0.5, 0.75, 1].map((g) => ({ img: N.tree(0, g, 0.5), label: `oak ${g}` })), { bg: '#8fd3ff' });
+sheet('TREE SIZES', [0, 0.5, 1].map((s) => ({ img: N.tree(1, 1, s), label: `pine ${s}` })), { bg: '#8fd3ff' });
+sheet('FELLED', [
+  { img: N.stump(0), label: 'stump' },
+  { img: N.log(0, 90), label: 'log' },
+], { bg: '#5aa83c' });
+sheet('UNDERGROWTH', [
+  { img: N.bush(0), label: 'bush' },
+  { img: N.bush(1, '#e8626f'), label: 'berries' },
+  { img: N.grassTuft(0), label: 'tuft' },
+  { img: N.grassTuft(1), label: 'tuft2' },
+  { img: N.flower(0), label: 'f0' },
+  { img: N.flower(1), label: 'f1' },
+  { img: N.flower(2), label: 'f2' },
+  { img: N.fern(), label: 'fern' },
+  { img: N.mushroom(0), label: 'shroom' },
+  { img: N.mushroom(1), label: 'shroom2' },
+  { img: N.rock(0), label: 'rock' },
+  { img: N.rock(2), label: 'boulder' },
+], { bg: '#5aa83c' });
+sheet('FROM ABOVE', [
+  { img: N.treeTop(0, 1), label: 'oak' },
+  { img: N.treeTop(1, 0.6), label: 'pine' },
+  { img: N.grassTile(0), label: 'turf' },
+  { img: N.grassTile(2), label: 'turf2' },
+  { img: N.dirtTile(0), label: 'path' },
+], { bg: '#5aa83c' });
+
+// ---- buildings
+sheet('CABINS - SIDE', S.HOUSE_STYLES.slice(0, 3).map((st) => ({
+  img: S.cabinSide(st, { lit: true }), label: st })), { bg: '#8fd3ff' });
+sheet('CABINS - SIDE 2', S.HOUSE_STYLES.slice(3).map((st) => ({
+  img: S.cabinSide(st, { lit: true }), label: st })), { bg: '#8fd3ff' });
+sheet('HOUSES - ABOVE', S.HOUSE_STYLES.slice(0, 4).map((st) => ({
+  img: S.houseTop(st, { lit: true }), label: st })), { bg: '#5aa83c' });
+sheet('YARD PIECES', [
+  { img: S.fenceSide(60), label: 'fence' },
+  { img: S.fenceTop(60), label: 'fence top' },
+  { img: S.gardenBed(56, 34, 'leaf'), label: 'veg' },
+  { img: S.gardenBed(40, 28, 'flower'), label: 'flowers' },
+  { img: S.wellTop(), label: 'well' },
+  { img: S.signPost(), label: 'sign' },
+], { bg: '#5aa83c' });
+
+// ---- cast
+sheet('HERO - SIDE', ['idle', 'walk', 'run', 'jump', 'chop', 'saw', 'screw', 'carry', 'sit', 'kneel']
+  .map((p) => ({ img: A.hero(p, 0), label: p })), { bg: '#3b2a1c' });
+sheet('HERO - WALK CYCLE', [0, 1, 2, 3].map((f) => ({ img: A.hero('walk', f), label: `w${f}` })), { bg: '#3b2a1c' });
+sheet('HERO - CHOP CYCLE', [0, 1, 2, 3].map((f) => ({ img: A.hero('chop', f), label: `c${f}` })), { bg: '#3b2a1c' });
+sheet('OTHERS', [
+  { img: A.elder('idle', 0), label: 'grandpa' },
+  { img: A.elder('hold', 0), label: 'axe' },
+  { img: A.elder('kneel', 0), label: 'kneel' },
+  { img: A.granny('lie'), label: 'granny' },
+  { img: A.granny('sit'), label: 'sitting' },
+  { img: A.foxMedic(0), label: 'fox' },
+  { img: A.foxMedic(1, true), label: 'carry' },
+], { bg: '#3b2a1c' });
+sheet('TOP DOWN', [
+  { img: A.heroTop('down', 0), label: 'down' },
+  { img: A.heroTop('up', 0), label: 'up' },
+  { img: A.heroTop('left', 0), label: 'left' },
+  { img: A.heroTop('right', 0), label: 'right' },
+  { img: A.npcTop('#c49a63', 0, { ears: 'long' }), label: 'rabbit' },
+  { img: A.npcTop('#7e8a96', 0, {}), label: 'smith' },
+], { bg: '#5aa83c' });
+window.__ready = true;
+</script>
+</body>
+</html>

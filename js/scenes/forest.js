@@ -7,6 +7,9 @@ import { G, toast } from '../state.js';
 import { PAL, rect, frame, px, text, disc, line, rngFrom, wrap, sprite, surface, outline, rimLight }
   from '../gfx/pixel.js';
 import { SUN } from '../gfx/actors.js';
+import { RAMPS, ramp, mix, noise as pnoise, turf, soilBand, contact, plank, speck } from '../gfx/paint.js';
+import * as N from '../gfx/nature.js';
+import * as B from '../gfx/structures.js';
 import { cam } from '../gfx/screen.js';
 import * as S from '../gfx/sprites.js';
 import { input, pressed, held } from '../input.js';
@@ -23,137 +26,11 @@ const CHOP_REACH = 34;
 const FALL_WINDOW = 1.5;     // how long the creak gives you to get clear
 const FALL_LENGTH = 120;      // how far the trunk reaches when it lands
 
-// Four kinds of timber, each with its own trunk colour and canopy shape. These
-// are drawn far bigger than the tile trees in the valley view - a side-scrolling
-// wood only works if the trees tower over you.
-const SPECIES = [
-  { name: 'fir',   trunk: ['#5a3b22', '#7c5130', '#3b2a1c'],
-    leaf: ['#276b2c', '#3d9438', '#5cba48', '#86dd63'], shape: 'cone' },
-  { name: 'oak',   trunk: ['#7c5130', '#a06c3f', '#4a3524'],
-    leaf: ['#2f7a33', '#4aa53f', '#6fce50', '#9ce870'], shape: 'round' },
-  { name: 'birch', trunk: ['#c9b68f', '#e6d7b0', '#6b5c45'],
-    leaf: ['#3d9438', '#5cba48', '#86dd63', '#b6f086'], shape: 'round' },
-  { name: 'maple', trunk: ['#6b4423', '#96602f', '#3b2a1c'],
-    leaf: ['#a8501c', '#d1742a', '#f0a13c', '#f7cc55'], shape: 'round' },
-];
-
-export const FOREST_SPECIES = SPECIES.length;
-
-/** One canopy blob, dithered from the inside out so it holds together. */
-function canopyBlob(ctx, cx, cy, r, leaf) {
-  // slightly squashed - foliage sits on branches, it does not float
-  const squash = 0.82;
-  const ell = (rad, tone) => {
-    ctx.fillStyle = tone;
-    for (let y = -Math.round(rad * squash); y <= Math.round(rad * squash); y++) {
-      const span = Math.round(rad * Math.sqrt(Math.max(0, 1 - (y * y) / (rad * rad * squash * squash))));
-      if (span > 0) ctx.fillRect(cx - span, cy + y, span * 2 + 1, 1);
-    }
-  };
-  ell(r, leaf[0]);
-  ell(Math.max(1, r - 2), leaf[1]);
-  ell(Math.max(1, r - 5), leaf[2]);
-  // a broken, clumpy edge so it never reads as a circle
-  const rng = rngFrom(Math.round(cx * 31 + cy * 17 + r));
-  for (let i = 0; i < r * 8; i++) {
-    const a = (i / (r * 8)) * Math.PI * 2;
-    const rr = r + Math.round((rng() - 0.4) * 3);
-    px(ctx, Math.round(cx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * rr * squash),
-       rng() > 0.4 ? leaf[1] : leaf[0]);
-  }
-  for (let i = 0; i < r; i++) {   // gaps you can see sky through
-    const a = rng() * Math.PI * 2, rr = rng() * r * 0.7;
-    px(ctx, Math.round(cx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * rr * squash), leaf[0]);
-  }
-  // sun on the top left
-  for (let i = 0; i < r * 2; i++) {
-    const a = -2.4 + (i / (r * 2)) * 1.6;
-    px(ctx, Math.round(cx + Math.cos(a) * (r - 3)), Math.round(cy + Math.sin(a) * (r - 3)), leaf[3]);
-  }
-}
-
-/** A whole tree, painted once and remembered. */
-export function bigTree(variant, stage, size = 1) {
-  const sp = SPECIES[variant % SPECIES.length];
-  const step = Math.max(1, Math.round(stage * 4));       // four growth stages
-  const bucket = Math.max(0, Math.min(2, Math.round(size * 2)));
-  const key = `bigtree:${variant}:${step}:${bucket}`;
-  const grow = step / 4;
-  const h = Math.round((74 + (variant % 3) * 14 + bucket * 15) * (0.34 + grow * 0.66));
-  const w = Math.round(h * 0.86);
-  return sprite(key, w, h + 2, (ctx) => {
-    const cx = w >> 1;
-    const trunkW = Math.max(2, Math.round(h * 0.045));
-    const trunkTop = Math.round(h * (sp.shape === 'cone' ? 0.34 : 0.42));
-    // roots flaring into the ground
-    rect(ctx, cx - trunkW, h - 4, trunkW * 2, 4, sp.trunk[2]);
-    rect(ctx, cx - trunkW - 2, h - 2, trunkW * 2 + 4, 2, sp.trunk[2]);
-    // trunk, tapering
-    for (let y = h - 4; y > trunkTop; y--) {
-      const k = (h - y) / (h - trunkTop);
-      const tw = Math.max(2, Math.round(trunkW * (1.15 - k * 0.45)));
-      rect(ctx, cx - tw, y, tw * 2, 1, sp.trunk[0]);
-      rect(ctx, cx - tw, y, Math.max(1, tw >> 1), 1, sp.trunk[1]);
-      rect(ctx, cx + tw - Math.max(1, tw >> 2), y, Math.max(1, tw >> 2), 1, sp.trunk[2]);
-      if (sp.name === 'birch' && y % 7 === 0) rect(ctx, cx - tw, y, tw + 1, 1, sp.trunk[2]);
-      else if (y % 5 === 0) px(ctx, cx + (y % 3) - 1, y, sp.trunk[2]);
-    }
-    // a couple of branches, then the canopy
-    if (grow > 0.5) {
-      for (const [dx, dy, len] of [[-1, 0.62, 0.28], [1, 0.54, 0.24]]) {
-        const bx = cx, by = Math.round(h * dy);
-        line(ctx, bx, by, Math.round(bx + dx * h * len), Math.round(by - h * 0.1), sp.trunk[0]);
-      }
-    }
-    if (sp.shape === 'cone') {
-      // a fir: overlapping skirts, each a ragged triangle, widest at the bottom
-      const tiers = 5;
-      const top = Math.round(h * 0.06);
-      const rng = rngFrom(variant * 977 + step * 31 + bucket);
-      for (let i = 0; i < tiers; i++) {
-        const k = i / (tiers - 1);
-        const ty = Math.round(top + k * (trunkTop + h * 0.42 - top));
-        const tw = Math.round((w * 0.5) * (0.22 + k * 0.78));
-        const th = Math.round(h * 0.16);
-        for (let row = 0; row < th; row++) {
-          const span = Math.round(tw * (row / th));
-          const jag = Math.round(rng() * 2);
-          const tone = row < 2 ? sp.leaf[3] : row < th * 0.5 ? sp.leaf[2] : sp.leaf[1];
-          rect(ctx, cx - span - jag, ty + row, (span + jag) * 2, 1, tone);
-          if (row > th * 0.6) {
-            px(ctx, cx - span - jag, ty + row, sp.leaf[0]);
-            px(ctx, cx + span + jag, ty + row, sp.leaf[0]);
-          }
-        }
-      }
-    } else {
-      const r = Math.round(w * 0.26);
-      canopyBlob(ctx, cx, trunkTop - Math.round(r * 0.2), Math.round(r * 1.15), sp.leaf);
-      canopyBlob(ctx, cx - Math.round(r * 1.1), trunkTop + Math.round(r * 0.5), r, sp.leaf);
-      canopyBlob(ctx, cx + Math.round(r * 1.1), trunkTop + Math.round(r * 0.45), r, sp.leaf);
-      canopyBlob(ctx, cx - Math.round(r * 0.5), trunkTop - Math.round(r * 0.9), Math.round(r * 0.85), sp.leaf);
-      canopyBlob(ctx, cx + Math.round(r * 0.6), trunkTop - Math.round(r * 0.75), Math.round(r * 0.8), sp.leaf);
-    }
-    outline(ctx, w, h + 2, PAL.ink);
-    rimLight(ctx, w, h + 2, sp.leaf[3], -1, -1);
-  });
-}
-
-/** The stump left behind, with the axe cut showing. */
-export function bigStump(variant) {
-  return sprite(`bigstump:${variant}`, 22, 14, (ctx) => {
-    const sp = SPECIES[variant % SPECIES.length];
-    rect(ctx, 3, 4, 16, 10, sp.trunk[0]);
-    rect(ctx, 3, 4, 16, 2, sp.trunk[1]);
-    for (let r = 7; r > 0; r -= 2) {
-      for (let x = -r; x <= r; x++) px(ctx, 11 + x, 5, r % 4 === 0 ? PAL.wood4 : PAL.wood3);
-    }
-    rect(ctx, 1, 12, 20, 2, sp.trunk[2]);
-    // the notch, on the side the axe went in
-    rect(ctx, 3, 7, 6, 3, PAL.wood0);
-    outline(ctx, 22, 14, PAL.ink);
-  });
-}
+// The timber itself is drawn by js/gfx/nature.js - trunks with bark, branch
+// skeletons and canopies built from overlapping leaf clumps. This scene only
+// decides where the trees stand, how they lean, and what happens when one comes
+// down on you.
+export const FOREST_SPECIES = N.TREE_KINDS;
 
 /** Chopping, falling, blacked out - all the state the felling needs. */
 export const fell = {
@@ -170,7 +47,7 @@ export function makeForest() {
       x: 240 + i * 122 + Math.round(rng() * 36),
       size: rng(),
       // weighted, so no one species takes over the wood
-      variant: [0, 1, 1, 2, 3, 3][Math.floor(rng() * 6) % 6],
+      variant: [0, 1, 1, 2, 3, 3][Math.floor(rng() * 6) % 6],   // weighted, so no one species takes over
       growth: 0.4 + rng() * 0.6,
       phase: rng() * Math.PI * 2,
       stump: false,
@@ -344,8 +221,8 @@ function blackout() {
 // -------------------------------------------------------------------- draw
 /** Trees lean by shearing the whole sprite about its base. */
 function drawTree(ctx, tree, t, f) {
-  const img = tree.stump ? bigStump(tree.variant)
-    : bigTree(tree.variant, tree.growth, tree.size === undefined ? 0.5 : tree.size);
+  const img = tree.stump ? N.stump(tree.variant)
+    : N.tree(tree.variant, tree.growth, tree.size === undefined ? 0.5 : tree.size);
   const sx = cam.sx(tree.x) - (img.width >> 1);
   const base = FOREST_GROUND + 2;
   const sy = base - img.height;
@@ -473,41 +350,23 @@ export function drawForest(ctx, t) {
       if (tree.depth !== depth) continue;
       const sx = Math.round(tree.x - cam.x * depth);
       if (sx < -90 || sx > VIEW_W + 90) continue;
-      const img = bigTree(tree.v, tree.g * (depth < 0.5 ? 0.55 : 0.78), tree.size);
+      const img = N.tree(tree.v, tree.g * (depth < 0.5 ? 0.55 : 0.78), tree.size);
       const lean = (Math.sin(t * 0.8 + tree.x) * 0.5 + f.wind) * 0.008;
       ctx.save();
       ctx.transform(1, 0, -lean, 1, lean * groundY, 0);
       ctx.drawImage(img, sx - (img.width >> 1), groundY - img.height);
       ctx.restore();
     }
-    // haze between the ranks - this is what gives the wood its depth
-    ctx.globalAlpha = depth < 0.5 ? 0.3 : 0.14;
-    rect(ctx, 0, 40, VIEW_W, FOREST_GROUND - 34, PAL.sky3);
+    // haze between the ranks - a cool tint, not a wash of white
+    ctx.globalAlpha = depth < 0.5 ? 0.2 : 0.1;
+    rect(ctx, 0, 40, VIEW_W, FOREST_GROUND - 34, '#7fb0d8');
     ctx.globalAlpha = 1;
   }
 
   // ---- ground
-  // a proper depth of turf, then the soil under it
-  rect(ctx, 0, FOREST_GROUND, VIEW_W, 56, SUN.grass1);
-  rect(ctx, 0, FOREST_GROUND, VIEW_W, 4, SUN.grass2);
-  rect(ctx, 0, FOREST_GROUND, VIEW_W, 2, SUN.grass3);
-  const turf = rngFrom(4477);
-  for (let i = 0; i < 200; i++) {
-    const sx = cam.sx(turf() * FOREST_W);
-    if (sx < 0 || sx > VIEW_W) continue;
-    const ty = FOREST_GROUND + 3 + Math.round(turf() * 48);
-    px(ctx, sx, ty, turf() > 0.5 ? SUN.grass0 : SUN.grass2);
-  }
-  rect(ctx, 0, FOREST_GROUND + 56, VIEW_W, VIEW_H, '#6b4a2c');
-  rect(ctx, 0, FOREST_GROUND + 56, VIEW_W, 3, '#8a5f38');
-  const soil = rngFrom(2211);
-  for (let i = 0; i < 150; i++) {
-    const sx = cam.sx(soil() * FOREST_W);
-    const sy = FOREST_GROUND + 59 + soil() * (VIEW_H - FOREST_GROUND - 59);
-    if (sx < 0 || sx > VIEW_W) continue;
-    const roll = soil();
-    px(ctx, sx, Math.round(sy), roll > 0.7 ? '#a3743f' : roll > 0.35 ? '#7c5130' : '#55361f');
-  }
+  // turf with a lit crown and blades standing off it, then the soil beneath
+  turf(ctx, 0, FOREST_GROUND, VIEW_W, 56, RAMPS.grass, { seed: 4477 });
+  soilBand(ctx, 0, FOREST_GROUND + 56, VIEW_W, VIEW_H - FOREST_GROUND - 56, RAMPS.soil, { seed: 2211 });
   // a beaten path along the walk line, with stones trodden into it
   const pathY = FOREST_GROUND + 20;
   rect(ctx, 0, pathY, VIEW_W, 14, '#a3854f');
@@ -559,15 +418,27 @@ export function drawForest(ctx, t) {
   }
   ctx.globalAlpha = 1;
 
-  // undergrowth
+  // undergrowth: bushes, ferns, tufts, mushrooms, stones and fallen wood
   const flora = rngFrom(818);
-  for (let i = 0; i < 70; i++) {
-    const wx = flora() * FOREST_W;
-    const sx = cam.sx(wx);
-    const kind = S.CLUTTER_KINDS[(flora() * S.CLUTTER_KINDS.length) | 0];
-    if (sx < -18 || sx > VIEW_W) continue;
-    const img = S.clutterSprite(kind, (flora() * 4) | 0);
-    ctx.drawImage(img, sx, FOREST_GROUND - img.height + 3);
+  const under = [];
+  for (let i = 0; i < 90; i++) {
+    under.push({ x: flora() * FOREST_W, roll: flora(), v: (flora() * 4) | 0, y: flora() });
+  }
+  const pathTop = FOREST_GROUND + 20, pathBottom = FOREST_GROUND + 34;
+  for (const it of under) {
+    const sx = cam.sx(it.x);
+    if (sx < -40 || sx > VIEW_W + 10) continue;
+    const baseY = FOREST_GROUND + 6 + Math.round(it.y * 44);
+    if (baseY > pathTop - 2 && baseY < pathBottom + 6) continue;   // nothing grows on the path
+    let img;
+    if (it.roll < 0.2) img = N.bush(it.v % 3, it.v === 1 ? '#e8626f' : null);
+    else if (it.roll < 0.42) img = N.grassTuft(it.v % 3);
+    else if (it.roll < 0.58) img = N.fern();
+    else if (it.roll < 0.7) img = N.flower(it.v);
+    else if (it.roll < 0.8) img = N.mushroom(it.v % 2);
+    else if (it.roll < 0.92) img = N.rock(it.v % 3);
+    else img = N.log(it.v % N.TREE_KINDS, 40);
+    ctx.drawImage(img, sx, baseY - img.height);
   }
 
   // ---- the stand itself, far to near
@@ -601,102 +472,49 @@ export function drawForest(ctx, t) {
 }
 
 /**
- * Grandpa's cabin, seen from the timber side: shingled roof, warm windows, a
- * chimney going, and the door you came out of.
+ * The back of grandpa's workshop, standing in its own clearing: the cabin from
+ * js/gfx/structures.js, with the yard clutter of a working carpenter round it.
  */
 function drawCabin(ctx, t) {
   const sx = cam.sx(70);
-  if (sx < -140 || sx > VIEW_W + 140) return;
-  const base = FOREST_GROUND + 2;
-  const w = 118, h = 76;
-  const x = sx - w / 2, y = base - h;
+  if (sx < -190 || sx > VIEW_W + 190) return;
+  const base = FOREST_GROUND + 14;
+  const img = B.cabinSide('workshop', { lit: true, door: 'open' });
+  const x = sx - (img.width >> 1);
+  const y = base - img.height;
 
-  // ground shadow
-  ctx.globalAlpha = 0.18;
-  for (let dy = -3; dy <= 3; dy++) {
-    const span = Math.round((w / 2 + 6) * Math.sqrt(Math.max(0, 1 - (dy * dy) / 11)));
-    rect(ctx, sx - span, base - 3 + dy, span * 2, 1, PAL.black);
+  // the shadow it casts on the turf
+  ctx.globalAlpha = 0.26;
+  for (let i = 0; i < 10; i++) {
+    rect(ctx, x + 14 + i, base - 10 + i, img.width - 20, 1, PAL.black);
   }
   ctx.globalAlpha = 1;
+  ctx.drawImage(img, x, y);
 
-  // walls: warm planks with a lit top edge
-  rect(ctx, x, y + 22, w, h - 22, SUN.wall1);
-  for (let i = 0; i < 4; i++) {
-    rect(ctx, x, y + 26 + i * 12, w, 1, SUN.wall0);
-    rect(ctx, x, y + 27 + i * 12, w, 1, SUN.wall2);
-  }
-  // corner posts
-  rect(ctx, x, y + 22, 5, h - 22, SUN.wood1);
-  rect(ctx, x + w - 5, y + 22, 5, h - 22, SUN.wood1);
-  rect(ctx, x, y + 22, 1, h - 22, SUN.wood3);
-
-  // roof: two courses of shingles with an overhang
-  for (let r = 0; r < 3; r++) {
-    const rw = w + 14 - r * 10;
-    const rx = sx - rw / 2;
-    const ry = y + 16 - r * 7;
-    rect(ctx, rx, ry, rw, 8, r === 0 ? '#8a4b38' : '#a3583f');
-    rect(ctx, rx, ry, rw, 2, '#c06a4a');
-    for (let k = 0; k < rw; k += 9) px(ctx, rx + k + (r % 2 ? 4 : 0), ry + 5, '#7a3f2f');
-  }
-  rect(ctx, sx - 4, y - 6, 8, 8, '#a3583f');
-
-  // chimney, smoking
-  rect(ctx, x + w - 34, y - 14, 14, 22, '#8a8f98');
-  for (let i = 0; i < 3; i++) rect(ctx, x + w - 34, y - 14 + i * 7, 14, 2, '#6d7783');
-  rect(ctx, x + w - 36, y - 16, 18, 3, '#a9b0b8');
-  for (let i = 0; i < 5; i++) {
-    const sy2 = y - 20 - ((t * 12 + i * 8) % 40);
-    const drift = Math.sin(sy2 * 0.12 + t) * 5;
-    ctx.globalAlpha = 0.5 - i * 0.08;
-    disc(ctx, Math.round(x + w - 27 + drift), Math.round(sy2), 3 + i, PAL.paper2);
+  // smoke from the chimney
+  for (let i = 0; i < 7; i++) {
+    const sy = y + 4 - ((t * 12 + i * 8) % 52);
+    const drift = Math.sin(sy * 0.08 + t * 0.7) * 8;
+    ctx.globalAlpha = Math.max(0, 0.45 - i * 0.06);
+    disc(ctx, Math.round(x + img.width - 32 + drift), Math.round(sy), 3 + i, PAL.paper2);
     ctx.globalAlpha = 1;
   }
 
-  // two lit windows
-  for (const wx of [x + 22, x + 76]) {
-    rect(ctx, wx, y + 34, 22, 20, '#f7cc55');
-    rect(ctx, wx, y + 34, 22, 6, '#fff3c4');
-    frame(ctx, wx - 2, y + 32, 26, 24, SUN.wood2);
-    frame(ctx, wx - 3, y + 31, 28, 26, SUN.wood0);
-    rect(ctx, wx + 10, y + 34, 2, 20, SUN.wood2);
-    rect(ctx, wx, y + 43, 22, 2, SUN.wood2);
-    ctx.globalAlpha = 0.12;
-    disc(ctx, wx + 11, y + 44, 22, PAL.gold2);
-    ctx.globalAlpha = 1;
+  // a hand-painted sign, a woodpile, a chopping block and the sawhorse
+  const sign = B.signPost();
+  ctx.drawImage(sign, sx + 60, base - sign.height);
+  text(ctx, 'WORKSHOP', sx + 88, base - sign.height + 7, PAL.ink, { align: 'center' });
+  for (let i = 0; i < 8; i++) {
+    const lx = x - 44 + (i % 4) * 11;
+    const ly = base - 6 - Math.floor(i / 4) * 9;
+    const lg = N.log(i % N.TREE_KINDS, 12);
+    ctx.drawImage(lg, lx, ly - lg.height);
   }
-
-  // the door, with a step and a lantern beside it
-  const dx = sx - 11;
-  rect(ctx, dx, base - 34, 22, 34, SUN.wood2);
-  rect(ctx, dx, base - 34, 22, 2, SUN.wood4);
-  frame(ctx, dx, base - 34, 22, 34, SUN.wood0);
-  for (let i = 0; i < 3; i++) rect(ctx, dx + 3, base - 30 + i * 10, 16, 8, SUN.wood1);
-  px(ctx, dx + 18, base - 18, PAL.gold2);
-  rect(ctx, dx - 4, base - 3, 30, 3, PAL.stone2);
-  rect(ctx, dx + 26, base - 22, 3, 22, SUN.wood1);
-  disc(ctx, dx + 27, base - 24, 3, PAL.gold2);
-  ctx.globalAlpha = 0.14;
-  disc(ctx, dx + 27, base - 24, 14, PAL.gold2);
-  ctx.globalAlpha = 1;
-
-  // a hand-painted sign over the door
-  rect(ctx, sx - 30, y + 58, 60, 12, SUN.wood3);
-  rect(ctx, sx - 30, y + 58, 60, 1, SUN.wood4);
-  frame(ctx, sx - 30, y + 58, 60, 12, SUN.wood0);
-  text(ctx, 'WORKSHOP', sx, y + 60, PAL.ink, { align: 'center' });
-
-  // a woodpile and a stump chopping block outside
-  for (let i = 0; i < 6; i++) {
-    const lx = x + w + 8 + (i % 3) * 9;
-    const ly = base - 4 - Math.floor(i / 3) * 7;
-    rect(ctx, lx, ly, 8, 6, SUN.wood2);
-    disc(ctx, lx + 1, ly + 3, 2, SUN.wood4);
-  }
-  rect(ctx, x - 26, base - 10, 18, 10, SUN.wood2);
-  rect(ctx, x - 26, base - 10, 18, 3, SUN.wood4);
-  rect(ctx, x - 20, base - 18, 2, 8, SUN.wood1);
-  rect(ctx, x - 23, base - 21, 8, 4, PAL.stone2);
+  const block = N.stump(0);
+  ctx.drawImage(block, x + img.width + 6, base - block.height);
+  plank(ctx, x + img.width + 12, base - block.height - 8, 3, 10, RAMPS.oak, { dir: 'v', knots: 0 });
+  rect(ctx, x + img.width + 8, base - block.height - 14, 12, 7, RAMPS.iron[2]);
+  rect(ctx, x + img.width + 8, base - block.height - 14, 12, 2, RAMPS.iron[4]);
 }
 
 /** The chop meter, the creak warning and the blackout, all drawn over the top. */

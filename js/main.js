@@ -40,6 +40,7 @@ import { forest, makeForest, growForest, updateForest, drawForest, drawForestHud
          FOREST_GROUND, FOREST_BOUNDS } from './scenes/forest.js';
 import { travel, openMap, closeMap, updateTravel, drawMap, drawFlight, startFlight } from './scenes/travel.js';
 import { site, openSite, closeSite, updateSite, drawSite, geometry as siteGeometry } from './scenes/site.js';
+import { yard, openYard, closeYard, updateYard, drawYard, enteredHouse } from './scenes/yard.js';
 import { phone, openPhone, closePhone, drawPhone } from './ui/phone.js';
 import { saw, openSaw, closeSaw, updateSaw, drawSaw, canSaw } from './minigames/saw.js';
 import { asm, openAssemble, closeAssemble, updateAssemble, drawAssemble } from './minigames/assemble.js';
@@ -274,8 +275,9 @@ travel.onCamp = () => {
 };
 
 travel.onPick = (npcId) => {
-  openSite(npcId);
-  G.mode = 'site';
+  // the heron sets you down at the gate; you walk in from there
+  openYard(npcId);
+  G.mode = 'yard';
   closeMap();
 };
 
@@ -283,6 +285,16 @@ function leaveSite() {
   closeSite();
   goMode('workshop');
   if (story().tutorial >= 0) tutorialDone('deliver');
+}
+
+/** Through the front door: the yard hands over to the room inside. */
+function enterHouse() {
+  const npcId = yard.npc;
+  closeYard();
+  startFade(() => {
+    openSite(npcId);
+    G.mode = 'site';
+  }, PAL.wood1);
 }
 
 function handleWorkshopInput() {
@@ -406,7 +418,7 @@ function step(now) {
 
 function update(real) {
   const overlayNow = helpOpen || mini.active || !!G.station || screenMode === 'title' || campaignOverlay();
-  updateTouch(G.mode === 'site' ? 'site' : G.mode, overlayNow);
+  updateTouch(G.mode === 'site' || G.mode === 'yard' ? 'site' : G.mode, overlayNow);
   if (screenMode === 'title') { updateTitle(real); return; }
   if (screenMode === 'cutscene') {
     updateCutscene(real);
@@ -443,7 +455,10 @@ function update(real) {
   const simDt = G.paused || overlay ? 0 : real * G.speed;
   if (simDt > 0) simulate(simDt);
 
-  if (G.mode === 'site') {
+  if (G.mode === 'yard') {
+    if (!overlay) updateYard(real);
+    if (enteredHouse() && fade.dur <= 0) enterHouse();
+  } else if (G.mode === 'site') {
     if (!overlay) updateSite(real);
     if (!site.active) leaveSite();
   } else if (G.mode === 'workshop') {
@@ -489,6 +504,14 @@ function render(real) {
   if (travel.flying) {
     drawFlight(ctx, wall);
     drawTouchControls(ctx, wall);
+    return;
+  }
+
+  if (G.mode === 'yard') {
+    drawYard(ctx, wall);
+    drawToasts(ctx, real, 30, false);
+    drawTouchControls(ctx, wall);
+    if (fade.dur > 0) drawFade(ctx);
     return;
   }
 
@@ -719,7 +742,8 @@ Object.defineProperty(window, '__inputSnapshot', { get: () => ({ mx: input.mx, m
 
 window.DAMIT = {
   // the campaign, exposed so the story can be poked at from the console
-  story, fell, forest, site, travel, phone, saw, asm, buildMenu, cut, siteGeometry,
+  story, fell, forest, site, yard, travel, phone, saw, asm, buildMenu, cut, siteGeometry,
+  openYard,
   goMode, openPhone, openSaw, openAssemble, openMap, openSite, playCutscene,
   G, simulate, newGame, placeSite, completeSite, spawnRequest, makeBeaver,
   toggleTreeMark, takeOff, landHome, openStation, closeStation,

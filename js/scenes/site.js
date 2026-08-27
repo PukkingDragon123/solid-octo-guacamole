@@ -11,6 +11,9 @@ import { story, takeMaterials, haveMaterials, missingMaterials, friendRank } fro
 import { NPCS, FURNITURE, REPAIRS, outstanding, takeFurniture, completeOrder } from '../orders.js';
 import { drawFurniture } from '../gfx/furniture.js';
 import { heroTop, npcTop, drawTop, SUN } from '../gfx/actors.js';
+import { RAMPS, ramp, mix, contact, ao, plank, plankWall, cloth, metal, glass, stonework,
+         speck, noise as pnoise } from '../gfx/paint.js';
+import * as N from '../gfx/nature.js';
 import { sfx } from '../audio.js';
 
 const CELL = 16;                 // one tile, same as the rest of the game
@@ -323,47 +326,41 @@ function drawRoom(ctx, t) {
   const th = THEMES[site.theme];
   const rw = COLS * CELL, rh = ROWS * CELL;
 
-  // ---- outside: bright turf, a path to the door, flower beds under the walls
-  rect(ctx, 0, 0, VIEW_W, VIEW_H, SUN.grass1);
-  const rng = rngFrom(1717);
-  for (let i = 0; i < 300; i++) {
-    const gx = rng() * VIEW_W, gy = rng() * VIEW_H;
-    px(ctx, Math.round(gx), Math.round(gy), rng() > 0.5 ? SUN.grass0 : SUN.grass2);
+  // ---- outside the walls: the same turf and path as the yard, so going in and
+  // out of the house does not change the world you are standing in
+  for (let y = 0; y < VIEW_H; y += 16) {
+    for (let x = 0; x < VIEW_W; x += 16) {
+      ctx.drawImage(N.grassTile(((x * 7 + y * 13) / 16) % 6 | 0, 16), x, y);
+    }
   }
-  for (let i = 0; i < 60; i++) {
-    const gx = Math.round(rng() * VIEW_W), gy = Math.round(rng() * VIEW_H);
-    const kind = rng();
-    if (kind < 0.4) { px(ctx, gx, gy, '#f7cc55'); px(ctx, gx, gy + 1, SUN.grass0); }
-    else if (kind < 0.7) { px(ctx, gx, gy, '#f2f2f2'); px(ctx, gx + 1, gy, '#f2f2f2'); }
-    else { px(ctx, gx, gy, '#e8626f'); px(ctx, gx, gy + 1, SUN.grass0); }
-  }
-  // the path up to the door
-  const pathX = ROOM_X + rw / 2 - 14;
-  rect(ctx, pathX, ROOM_Y + rh, 28, VIEW_H, '#a3854f');
-  for (let y = ROOM_Y + rh; y < VIEW_H; y += 7) rect(ctx, pathX, y, 28, 1, '#8f7442');
-  for (let i = 0; i < 14; i++) {
-    px(ctx, pathX + 2 + ((i * 7) % 24), ROOM_Y + rh + 4 + i * 5, '#c9c0b5');
+  N.grassPatches(ctx, 0, 0, VIEW_W, VIEW_H, 1717);
+  const pathX = ROOM_X + rw / 2 - 16;
+  for (let y = ROOM_Y + rh; y < VIEW_H; y += 16) {
+    for (let x = pathX; x < pathX + 32; x += 16) {
+      ctx.drawImage(N.dirtTile((x / 16 + y / 8) % 3, 16), x, y);
+    }
   }
 
-  // ---- the cabin shell, seen from above: thick walls with a lit top edge
-  const wallT = 8;
-  rect(ctx, ROOM_X - wallT, ROOM_Y - wallT - 6, rw + wallT * 2, rh + wallT * 2 + 6, th.wall);
-  rect(ctx, ROOM_X - wallT, ROOM_Y - wallT - 6, rw + wallT * 2, 4, '#a3583f');   // roof edge
-  rect(ctx, ROOM_X - wallT, ROOM_Y - wallT - 2, rw + wallT * 2, 3, 'rgba(255,255,255,0.14)');
-  frame(ctx, ROOM_X - wallT, ROOM_Y - wallT - 6, rw + wallT * 2, rh + wallT * 2 + 6, SUN.wood0);
+  // ---- the shell: boarded walls seen edge-on, with the roof line above
+  const wallT = 9;
+  const wallRamp = ramp(th.wall);
+  plankWall(ctx, ROOM_X - wallT, ROOM_Y - wallT - 7, rw + wallT * 2, rh + wallT * 2 + 7,
+            wallRamp, { step: 18, dir: 'v' });
+  plank(ctx, ROOM_X - wallT, ROOM_Y - wallT - 7, rw + wallT * 2, 5, RAMPS.shingle,
+        { dir: 'h', knots: 0 });
+  frame(ctx, ROOM_X - wallT, ROOM_Y - wallT - 7, rw + wallT * 2, rh + wallT * 2 + 7, SUN.wood0);
   ctx.globalAlpha = 0.22;
   rect(ctx, ROOM_X - wallT, ROOM_Y + rh + wallT, rw + wallT * 2, 3, PAL.black);
   ctx.globalAlpha = 1;
 
-  // ---- the floor, laid in boards two tiles wide
+  // ---- the floor: real boards with grain, laid in staggered lengths
+  const floorRamp = ramp(th.floor[0]);
   for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const x = ROOM_X + c * CELL, y = ROOM_Y + r * CELL;
-      rect(ctx, x, y, CELL, CELL, (r + Math.floor(c / 2)) % 2 ? th.floor[0] : th.floor[1]);
-      rect(ctx, x, y, CELL, 1, 'rgba(255,255,255,0.08)');
-      rect(ctx, x, y + CELL - 1, CELL, 1, 'rgba(0,0,0,0.10)');
-      px(ctx, x + 3, y + 6, 'rgba(0,0,0,0.10)');
-      px(ctx, x + 11, y + 11, 'rgba(255,255,255,0.06)');
+    plank(ctx, ROOM_X, ROOM_Y + r * CELL, rw, CELL, floorRamp,
+          { dir: 'h', seed: 300 + r * 7, knots: r % 3 === 0 ? 1 : 0, ao: false });
+    for (let c = (r % 2) ? 0 : 2; c < COLS; c += 4) {
+      rect(ctx, ROOM_X + c * CELL, ROOM_Y + r * CELL, 1, CELL,
+           mix(floorRamp[1], floorRamp[0], 0.5));
     }
   }
   // skirting inside the walls

@@ -16,23 +16,27 @@ no dependencies.
 
 ![Title screen: a beaver at sunset on a rock, looking out at its dam](screenshot-title.png)
 
-![The opening cutscene: grandpa in his armchair, the television glowing, rain on the window](screenshot-cutscene.png)
+![The opening film: grandpa in his armchair, the television throwing light across the room](screenshot-cutscene.png)
 
-![The fox stretcher crew carrying grandma down the path in the rain, lights washing the cabin](screenshot-ambulance.png)
+![The crash: the camera tilted, the picture gone to static, a comic CRASH balloon](screenshot-crash.png)
+
+![The kitchen, revealed on a crane down: grandma on the tiles, the kettle still going](screenshot-kitchen.png)
+
+![The fox stretcher crew carrying her down the path in the rain, lights washing the cabin](screenshot-ambulance.png)
 
 ![Grandpa's workshop: the tool wall, the saw bench, and the hospital bill pinned by the phone](screenshot-workshop.png)
 
 ![The workshop from outside: a shingled cabin with lit windows and smoke from the chimney](screenshot-cabin.png)
 
-![The timber out the back: a side-scrolling wood of tall trees leaning in the wind](screenshot-forest.png)
+![The timber out the back: bark, branch structure and clumped canopies, layered into depth](screenshot-forest.png)
 
-![A customer's room from above: the baker's oven, furniture fitted to the plan, a pane to reglaze](screenshot-site.png)
+![Arriving at the baker's: her house in three-quarter view, the oven going, the door open](screenshot-yard.png)
+
+![The weaver's yard: washing lines of dyed cloth, baskets of wool, a well and a vegetable bed](screenshot-yard2.png)
+
+![Inside: furniture fitted to the plan on real floorboards, a pane still to reglaze](screenshot-site.png)
 
 ![The same room in blueprint mode: a dimensioned plan with dashed outlines for every piece](screenshot-blueprint.png)
-
-![The camp, seen side-on, with the dam visible across the pond behind it](screenshot-camp.png)
-
-![The valley from the back of the heron: mixed woodland, mushrooms, fallen logs and butterflies](screenshot-sky.png)
 
 ## Play it
 
@@ -205,22 +209,61 @@ is there so the valley is never still.
 
 ## The look
 
-Bright, saturated, low-resolution pixel art on a 16px tile grid - the cosy
-farm-sim register, warm rather than gloomy. Outlines are a warm brown, never pure
-black; light is a visible thing (sun through a window, a lit oven mouth, a lamp
-over a bench) and everything that stands on the floor casts a soft contact
-shadow so it sits in the room rather than on top of it.
+Bright, saturated, low-resolution pixel art on a 16px grid, in the cosy farm-sim
+register. Nothing is a flat rectangle of one colour, and nothing is noise either
+- the rule is that texture serves the form:
+
+- **Five-tone ramps.** `js/gfx/paint.js` builds every material from one base
+  colour, with the shadow end shifted cool and desaturated and the highlight end
+  shifted warm. A ramp is a set of related colours, not one colour with the
+  brightness dragged about.
+- **Materials, not fills.** Boards have a heartwood band, a lit edge, a shadowed
+  gap and the odd knot with the grain parting around it. Shingles overlap, so
+  what you see is the butt of each tile with the course above shadowing it.
+  Brick has courses and mortar; stone is irregular blocks with chipped edges;
+  cloth has a weave you can feel rather than count; metal has a bright band
+  across the middle; glass has a diagonal sheen.
+- **Texture density is hierarchy.** A whole wall gets board edges and tone
+  variation only - grain at that scale reads as static. A plank you are holding
+  gets the grain. That is the difference between textured and busy.
+- **Light has a direction.** Top left, everywhere. Every solid gets a rim on its
+  lit edge, ambient occlusion where it turns away, and a soft contact shadow
+  where it meets the ground, so things sit in the world rather than on it.
+- **Nothing reads as a circle.** Foliage is built from overlapping leaf clumps
+  with notched silhouettes, individual leaves proud of the edge, and gaps you can
+  see sky through. Trees have a tapered trunk with bark and a real branch
+  skeleton for the canopy to hang on.
+- **Buildings are three-quarter view.** A roof drawn flat from overhead reads as
+  siding, so houses are drawn the way farm sims draw them: the roof tilting away
+  with its courses tightening toward the ridge, and the front wall with its door
+  below it. Every customer has a house, a yard, and the trade of their life
+  spread around it.
 
 The cast is one sprite bank. `js/gfx/actors.js` builds every character to the
-same 16x18 pattern as the beaver you already played - same fur ramp, same 1px
-outline, same ground shadow - and adds the poses the story needs: chopping,
-sawing, driving screws, carrying, kneeling, lying down, plus four-direction
-top-down versions for the scenes played from above. The cutscene blows those same
-sprites up by a whole number, so the beaver in the film is the beaver in the game.
+same pattern as the beaver you already played - same fur ramp, same warm outline,
+same ground shadow - and adds the poses the story needs: chopping, sawing,
+driving screws, carrying, kneeling, lying down, plus four-direction top-down
+versions. The cutscene blows those same sprites up by a whole number, so the
+beaver in the film is the beaver in the game.
 
-Rooms are small on purpose. The workshop is one cabin you can nearly see all of
-at once, and a customer's place is fifteen tiles by eight - big enough to fit the
-furniture out, small enough that the character never looks like a doll in a hall.
+Open `dev/assets.html` through the same server to see every sprite in the game on
+one contact sheet - the fastest way to judge a change to the art.
+
+## The film
+
+The opening is cut like a film rather than played like a slideshow.
+`js/scenes/camera.js` is the rig: a shot names a framing (wide, full, medium,
+close, insert), a move (push, pull, pan, dolly, crane, handheld) and a way out
+(cut, fade, iris, diagonal wipe). Sets are painted at full frame into a buffer
+and the camera crops that buffer, so a push is a real optical move rather than
+sprites growing. Everything is eased - a push starts slow, gathers, and settles.
+
+The comic language lives there too, used where it earns its place: the crash is a
+hard cut to a tilted frame with a white flash, radial burst lines, a jagged CRASH
+balloon and speed lines; the reaction after it puts grandpa's face in an inset
+panel instead of cutting away; the hallway is a dolly with the runners in
+silhouette; the dial pad is an insert; the bill lands with a burst behind the
+number. Thirteen shots and a title card. Enter skips a shot, Escape skips the lot.
 
 ## How the art works
 
@@ -273,17 +316,25 @@ js/orders.js        customers, furniture, the jobs that flow between them
 js/shop.js          the internet: machines and robot workers
 js/audio.js         every sound, synthesised - no audio files
 js/gfx/pixel.js     the pixel toolkit and the bitmap font
+js/gfx/paint.js     colour ramps and materials: wood, shingle, brick, stone,
+                    cloth, metal, glass, soil, turf, water
+js/gfx/nature.js    trees, stumps, logs, bushes, ferns, flowers, rocks, turf
+js/gfx/structures.js  cabins side-on, houses in three-quarter view, fences,
+                    gardens, wells, signs
+js/gfx/actors.js    every character, in one sprite bank
 js/gfx/furniture.js furniture art, shared by bench, van and customer's room
 js/gfx/sprites.js   every sprite, generated
 js/gfx/screen.js    the scaled canvas and the camera
 js/scenes/title.js  the sunset title screen
 js/scenes/camp.js   the side-scrolling camp
 js/scenes/valley.js the bird's-eye valley
-js/scenes/cutscene.js  the opening film: shots, camera, dialogue
+js/scenes/camera.js    the camera rig: framings, moves, easing, comic devices
+js/scenes/cutscene.js  the opening film: thirteen shots and their sets
 js/scenes/workshop.js  grandpa's workshop, the hub
 js/scenes/forest.js    the timber, and felling it without being flattened
 js/scenes/travel.js    the map table and the flight out
-js/scenes/site.js      a customer's place, from above
+js/scenes/yard.js      the outside of a customer's place
+js/scenes/site.js      the room inside it
 js/minigames/saw.js       rip and shape a log
 js/minigames/assemble.js  unpack, fit, screw together
 js/ui/widgets.js    immediate-mode pixel widgets
