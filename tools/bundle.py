@@ -49,8 +49,20 @@ def transform(path, src):
         if what.startswith('*'):
             name = what.split('as')[1].strip()
             return f"const {name} = __req('{target}');"
-        names = ' '.join(what.split())          # collapse multiline lists
-        return f"const {names} = __req('{target}');"
+        # collapse multiline lists, and translate `x as y` into the
+        # destructuring form `x: y` - the same thing, different syntax
+        inner = ' '.join(what.strip()[1:-1].split())
+        parts = []
+        for entry in inner.split(','):
+            entry = entry.strip()
+            if not entry:
+                continue
+            bits = entry.split()
+            if len(bits) == 3 and bits[1] == 'as':
+                parts.append(f'{bits[0]}: {bits[2]}')
+            else:
+                parts.append(entry)
+        return f"const {{ {', '.join(parts)} }} = __req('{target}');"
 
     code = IMPORT_RE.sub(swap, src)
     exports = [m.group(2) for m in EXPORT_DECL_RE.finditer(code)]
@@ -103,72 +115,21 @@ function __req(name) {
 
 
 ARTIFACT_HEAD = """<title>DAM IT</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bevan&family=Bitter:wght@400;600&family=Special+Elite&display=swap">
 <style>
-/* One committed visual world: a lamplit workshop after closing time. Every
-   colour is painted explicitly, so the page holds on either host ground. */
-:root {
-  --ground: #150f0b;      /* near-black, warm brown bias */
-  --timber: #2b1e14;
-  --timber-lit: #3b2a1c;
-  --plank: #c99a5f;
-  --sawdust: #f2e2bf;
-  --lamp: #f7cc55;
-  --ledger: #c93b32;
-  --rule: #4d301b;
-  --display: Bevan, "Bitter", Georgia, serif;
-  --body: Bitter, Georgia, "Times New Roman", serif;
-  --util: "Special Elite", ui-monospace, Menlo, monospace;
-}
-* { box-sizing: border-box; }
-body {
+/* Nothing but the game. It draws its own interface, so the page is a dark room
+   with a screen in it. */
+html, body {
   margin: 0;
-  min-height: 100%;
-  background: var(--ground);
-  background-image:
-    radial-gradient(120% 70% at 50% -10%, rgba(247, 204, 85, 0.10), transparent 60%),
-    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0 22px, rgba(255,255,255,0.012) 22px 23px);
-  color: var(--sawdust);
-  font-family: var(--body);
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #0d0a09;
+  overflow: hidden;
+}
+body {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px 18px;
-}
-.masthead {
-  width: 100%;
-  max-width: 980px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 7px;
-}
-.wordmark {
-  font-family: var(--display);
-  font-size: clamp(22px, 4.2vw, 34px);
-  letter-spacing: 0.02em;
-  color: var(--lamp);
-  line-height: 1;
-  text-wrap: balance;
-}
-.wordmark span { color: var(--plank); }
-.pitch {
-  font-family: var(--util);
-  font-size: 13px;
-  color: var(--plank);
-  text-align: right;
-  max-width: 46ch;
-  line-height: 1.35;
-}
-.stage {
-  width: 100%;
-  display: flex;
   justify-content: center;
-  overflow: auto;
 }
 #game {
   image-rendering: pixelated;
@@ -179,88 +140,21 @@ body {
   display: block;
   cursor: crosshair;
   background: #12395e;
-  box-shadow: 0 0 0 3px #2e1c11, 0 0 0 6px var(--rule), 0 14px 44px rgba(0, 0, 0, 0.85);
 }
-#game:focus-visible { outline: 3px solid var(--lamp); outline-offset: 8px; }
-#fallback { font-family: var(--util); letter-spacing: 2px; color: var(--plank); }
-.keys {
-  width: 100%;
-  max-width: 980px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 20px;
-  align-items: center;
-  font-family: var(--util);
-  font-size: 12.5px;
-  color: var(--plank);
+#game:focus { outline: none; }
+#fallback {
+  position: absolute;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #7a4e29;
 }
-.keys b {
-  font-family: var(--util);
-  font-weight: 400;
-  color: var(--sawdust);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 11px;
-}
-/* key caps, cut from the same timber as the game's own widgets */
-kbd {
-  font-family: var(--util);
-  font-size: 11.5px;
-  color: #1d1712;
-  background: linear-gradient(180deg, #e8d3a6 0 2px, var(--plank) 2px);
-  border: 1px solid #1d1712;
-  border-bottom-width: 2px;
-  padding: 1px 5px 0;
-  margin-right: 2px;
-  display: inline-block;
-  min-width: 17px;
-  text-align: center;
-}
-.note {
-  width: 100%;
-  max-width: 980px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #a9855c;
-  border-top: 1px solid var(--rule);
-  padding-top: 8px;
-}
-.note em { color: var(--sawdust); font-style: normal; }
-.note .owed { color: var(--ledger); }
-@media (max-width: 620px) {
-  .masthead { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .pitch { text-align: left; }
-  body { padding: 8px 8px 14px; }
-}
-@media (prefers-reduced-motion: reduce) { #game { box-shadow: 0 0 0 3px #2e1c11; } }
+@media (pointer: coarse) { #game { cursor: none; } }
 </style>
 """
 
-ARTIFACT_BODY = """<header class="masthead">
-  <div class="wordmark">DAM IT <span>&mdash; grandpa's workshop</span></div>
-  <p class="pitch">Grandma is in the infirmary. The bill is 4,800 acorns.<br>Fell it, saw it, build it, fit it. Pay her way home.</p>
-</header>
-
-<div class="stage">
-  <canvas id="game" width="480" height="270" tabindex="0" aria-label="DAM IT, a pixel-art carpentry game"></canvas>
-</div>
+ARTIFACT_BODY = """<canvas id="game" width="480" height="270" tabindex="0" aria-label="DAM IT"></canvas>
 <p id="fallback">Loading the valley&hellip;</p>
-
-<div class="keys">
-  <span><b>Workshop</b> <kbd>A</kbd><kbd>D</kbd> walk &middot; <kbd>E</kbd> use the bench you are at</span>
-  <span><b>Trees</b> <kbd>E</kbd> chop &middot; <kbd>Space</kbd> swing &mdash; then run when it creaks</span>
-  <span><b>A customer</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &middot; <kbd>E</kbd> carry and fit &middot; <kbd>B</kbd> blueprint</span>
-  <span><b>Anywhere</b> <kbd>H</kbd> help &middot; <kbd>Enter</kbd> skip the film</span>
-</div>
-
-<p class="note">
-  Click the screen once before you play &mdash; that gives it the keyboard, and lets the
-  sound start. Every sound is synthesised as it happens, which matters in the wood:
-  the <em>creak</em> is the warning that a trunk is coming down, and if you are still
-  under it when it lands you wake up in the leaves. The game saves itself to this
-  browser, so <em>Continue</em> picks up where you left off. Owing:
-  <span class="owed">4,800 acorns</span>.
-</p>
 """
 
 
@@ -283,7 +177,7 @@ def build(out_path, artifact=False):
 <script>
 document.getElementById('fallback').remove();
 // leave room for the masthead and the key legend when sizing the screen
-window.__DAMIT_FIT = {{ padY: 190, padX: 24 }};
+window.__DAMIT_FIT = {{ padY: 0, padX: 0 }};
 (function () {{
 'use strict';
 {script}

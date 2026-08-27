@@ -10,111 +10,130 @@ import { panel, button, bar, keyPrompt, scrim } from '../ui/widgets.js';
 import { story, takeMaterials, haveMaterials, missingMaterials, friendRank } from '../story.js';
 import { NPCS, FURNITURE, REPAIRS, outstanding, takeFurniture, completeOrder } from '../orders.js';
 import { drawFurniture } from '../gfx/furniture.js';
+import { heroTop, npcTop, drawTop, SUN } from '../gfx/actors.js';
 import { sfx } from '../audio.js';
 
-const CELL = 18;
-const COLS = 22, ROWS = 11;
+const CELL = 16;                 // one tile, same as the rest of the game
+const COLS = 15, ROWS = 8;       // a room you can see all of at once
 const ROOM_X = (VIEW_W - COLS * CELL) >> 1;
-const ROOM_Y = 44;
+const ROOM_Y = 52;
 
 /**
  * Wall, floor and rug sets. They are deliberately warm - the ground outside is
  * green, so a green floor makes the whole scene read as one flat colour.
  */
 const THEMES = [
-  { id: 'oak',   floor: ['#a3703f', '#8d5f36'], wall: '#5c4029', rug: '#8e3b3b' },
-  { id: 'ash',   floor: ['#c9a878', '#b3946a'], wall: '#6d5540', rug: '#3f5fc4' },
-  { id: 'brick', floor: ['#b5714f', '#9c5f43'], wall: '#7a4438', rug: '#e0a02e' },
-  { id: 'slate', floor: ['#9aa0a8', '#848a92'], wall: '#3f4650', rug: '#8256c4' },
+  { id: 'oak',   floor: ['#c78a4c', '#b07840'], wall: '#7c5130', rug: '#c04a4a' },
+  { id: 'ash',   floor: ['#e0bd8a', '#c9a878'], wall: '#8a6a45', rug: '#3f5fc4' },
+  { id: 'brick', floor: ['#cf8a5f', '#b5714f'], wall: '#9c5340', rug: '#3f7a86' },
+  { id: 'slate', floor: ['#b6bcc4', '#9aa0a8'], wall: '#5a636e', rug: '#a97ee0' },
 ];
 
-/** What each trade keeps against the back wall. */
+/** What each trade keeps against the back wall. One big fixture, one small. */
 function tradeFixtures(ctx, job, t) {
-  const bx = ROOM_X, by = ROOM_Y;
-  const at = (c, r) => ({ x: bx + c * CELL, y: by + r * CELL });
+  const at = (c, r) => ({ x: ROOM_X + c * CELL, y: ROOM_Y + r * CELL });
+  const glow = (x, y, r, tone) => {
+    ctx.globalAlpha = 0.14;
+    for (let i = 1; i <= 3; i++) disc(ctx, x, y, r + i * 5, tone);
+    ctx.globalAlpha = 1;
+  };
+
   if (job === 'Baker') {
-    // a brick oven, mouth glowing, and a rack of loaves
-    const o = at(2, 1);
-    rect(ctx, o.x - 16, o.y - 8, 44, 34, '#8a4b38');
+    const o = at(0, 0);
+    // brick oven, mouth lit
+    rect(ctx, o.x + 2, o.y + 2, 40, 28, '#a3583f');
     for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) {
-      rect(ctx, o.x - 15 + c * 9 + (r % 2 ? 4 : 0), o.y - 7 + r * 8, 8, 7, r % 2 ? '#a3583f' : '#96513a');
+      rect(ctx, o.x + 3 + c * 8 + (r % 2 ? 4 : 0), o.y + 3 + r * 7, 7, 6, r % 2 ? '#b5664a' : '#9c5340');
     }
-    disc(ctx, o.x + 6, o.y + 14, 9, PAL.ink);
-    disc(ctx, o.x + 6, o.y + 14, 7, Math.floor(t * 3) % 2 ? '#e8604a' : '#f7cc55');
-    const rk = at(7, 1);
-    rect(ctx, rk.x, rk.y, 46, 3, PAL.wood2);
-    rect(ctx, rk.x, rk.y + 12, 46, 3, PAL.wood2);
-    for (let i = 0; i < 4; i++) { disc(ctx, rk.x + 8 + i * 11, rk.y - 3, 4, '#c9a05c'); disc(ctx, rk.x + 8 + i * 11, rk.y + 9, 4, '#b98d4c'); }
+    rect(ctx, o.x, o.y, 44, 3, '#c06a4a');
+    disc(ctx, o.x + 22, o.y + 22, 8, PAL.ink);
+    disc(ctx, o.x + 22, o.y + 22, 6, Math.floor(t * 3) % 2 ? '#e8626f' : '#f7cc55');
+    glow(o.x + 22, o.y + 24, 8, '#f7cc55');
+    const r2 = at(4, 0);
+    rect(ctx, r2.x, r2.y + 6, 42, 3, SUN.wood3);
+    rect(ctx, r2.x, r2.y + 18, 42, 3, SUN.wood3);
+    for (let i = 0; i < 4; i++) {
+      disc(ctx, r2.x + 6 + i * 10, r2.y + 3, 4, '#d19a5c');
+      disc(ctx, r2.x + 6 + i * 10, r2.y + 15, 4, '#c08a4c');
+    }
   } else if (job === 'Blacksmith') {
-    const f = at(2, 1);
-    rect(ctx, f.x - 14, f.y - 6, 40, 30, PAL.stone1);
-    rect(ctx, f.x - 14, f.y - 6, 40, 4, PAL.stone2);
-    disc(ctx, f.x + 6, f.y + 10, 8, '#5a1f14');
-    for (let i = 0; i < 5; i++) px(ctx, f.x + 2 + i * 2, f.y + 4 - ((t * 20 + i * 5) % 12), PAL.gold2);
-    const a = at(8, 2);
-    rect(ctx, a.x, a.y, 24, 7, PAL.stone0);
-    rect(ctx, a.x + 6, a.y + 7, 10, 8, PAL.stone0);
-    rect(ctx, a.x - 4, a.y, 8, 4, PAL.stone0);
+    const f = at(0, 0);
+    rect(ctx, f.x + 2, f.y + 4, 36, 26, '#7c8189');
+    rect(ctx, f.x + 2, f.y + 4, 36, 3, '#a9b0b8');
+    disc(ctx, f.x + 20, f.y + 20, 8, '#5a1f14');
+    disc(ctx, f.x + 20, f.y + 20, 5, Math.floor(t * 4) % 2 ? '#f0a13c' : '#e8626f');
+    glow(f.x + 20, f.y + 20, 8, '#f0a13c');
+    const a = at(5, 1);
+    rect(ctx, a.x, a.y, 26, 7, '#5a636e');
+    rect(ctx, a.x, a.y, 26, 2, '#8a919b');
+    rect(ctx, a.x + 7, a.y + 7, 11, 8, '#4a525c');
+    rect(ctx, a.x - 5, a.y, 8, 4, '#5a636e');
   } else if (job === 'Weaver') {
-    const l = at(3, 1);
-    rect(ctx, l.x - 12, l.y - 10, 4, 36, PAL.wood1);
-    rect(ctx, l.x + 24, l.y - 10, 4, 36, PAL.wood1);
-    rect(ctx, l.x - 12, l.y - 10, 40, 3, PAL.wood2);
-    for (let i = 0; i < 9; i++) rect(ctx, l.x - 8 + i * 4, l.y - 7, 1, 30, i % 2 ? PAL.pink : PAL.paper2);
+    const l = at(1, 0);
+    rect(ctx, l.x, l.y, 4, 34, SUN.wood2);
+    rect(ctx, l.x + 34, l.y, 4, 34, SUN.wood2);
+    rect(ctx, l.x, l.y, 38, 4, SUN.wood3);
+    for (let i = 0; i < 9; i++) rect(ctx, l.x + 5 + i * 4, l.y + 4, 1, 28, i % 2 ? '#e8626f' : PAL.paper2);
+    rect(ctx, l.x, l.y + 22, 38, 3, SUN.wood1);
     for (let i = 0; i < 3; i++) {
-      const w = at(9 + i * 2, 1);
-      disc(ctx, w.x, w.y + 6, 7, [PAL.pink, PAL.sky3, PAL.gold2][i]);
-      rect(ctx, w.x - 7, w.y + 8, 14, 5, PAL.wood1);
+      const w = at(7 + i * 2, 0);
+      disc(ctx, w.x + 8, w.y + 12, 7, ['#e8626f', '#4f8be8', '#f2c14e'][i]);
+      disc(ctx, w.x + 6, w.y + 10, 3, 'rgba(255,255,255,0.35)');
+      rect(ctx, w.x, w.y + 16, 16, 5, SUN.wood2);
     }
   } else if (job === 'River Fisher') {
-    // an inlet of the river running along the back wall
-    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, CELL + 6, '#2f83b8');
-    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, 3, '#4fa9d8');
-    for (let i = 0; i < 30; i++) {
-      px(ctx, ROOM_X + ((i * 27 + Math.floor(t * 16)) % (COLS * CELL)), ROOM_Y + 6 + (i % 3) * 4, '#8fd6f0');
+    // an inlet along the back wall
+    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, CELL + 4, '#3f9ad8');
+    rect(ctx, ROOM_X, ROOM_Y, COLS * CELL, 4, '#6fc0f0');
+    for (let i = 0; i < 26; i++) {
+      px(ctx, ROOM_X + ((i * 23 + Math.floor(t * 14)) % (COLS * CELL)), ROOM_Y + 7 + (i % 3) * 4, '#a3ddfa');
     }
-    rect(ctx, ROOM_X, ROOM_Y + CELL + 6, COLS * CELL, 3, PAL.sand);
-    const r = at(9, 2);
-    rect(ctx, r.x, r.y, 3, 20, PAL.wood1);
-    rect(ctx, r.x + 30, r.y, 3, 20, PAL.wood1);
-    rect(ctx, r.x, r.y, 33, 2, PAL.wood2);
-    for (let i = 0; i < 3; i++) { rect(ctx, r.x + 6 + i * 10, r.y + 2, 5, 9, PAL.stone2); px(ctx, r.x + 7 + i * 10, r.y + 4, PAL.ink); }
+    rect(ctx, ROOM_X, ROOM_Y + CELL + 4, COLS * CELL, 3, '#e0c48a');
+    const r = at(8, 1);
+    rect(ctx, r.x, r.y + 2, 3, 18, SUN.wood2);
+    rect(ctx, r.x + 30, r.y + 2, 3, 18, SUN.wood2);
+    rect(ctx, r.x, r.y + 2, 33, 2, SUN.wood3);
+    for (let i = 0; i < 3; i++) {
+      rect(ctx, r.x + 6 + i * 10, r.y + 4, 5, 9, '#9aa0a8');
+      px(ctx, r.x + 7 + i * 10, r.y + 6, PAL.ink);
+    }
   } else if (job === 'Seed Miller') {
-    const m = at(3, 1);
-    disc(ctx, m.x, m.y + 8, 15, PAL.stone2);
-    disc(ctx, m.x, m.y + 8, 12, PAL.stone3);
-    disc(ctx, m.x, m.y + 8, 3, PAL.stone0);
-    rect(ctx, m.x - 1, m.y - 8, 3, 16, PAL.wood1);
+    const m = at(1, 0);
+    disc(ctx, m.x + 16, m.y + 16, 14, '#9aa0a8');
+    disc(ctx, m.x + 16, m.y + 16, 11, '#b6bcc4');
+    disc(ctx, m.x + 16, m.y + 16, 3, '#5a636e');
+    rect(ctx, m.x + 15, m.y, 3, 16, SUN.wood2);
     for (let i = 0; i < 4; i++) {
-      const sk = at(8 + i * 2, 1);
-      rect(ctx, sk.x - 7, sk.y - 2, 15, 20, '#c9b68f');
-      rect(ctx, sk.x - 5, sk.y - 5, 11, 5, '#b3a079');
-      px(ctx, sk.x, sk.y + 8, PAL.gold);
+      const sk = at(6 + i * 2, 0);
+      rect(ctx, sk.x, sk.y + 6, 15, 20, '#d8c79a');
+      rect(ctx, sk.x + 2, sk.y + 2, 11, 5, '#c0ad82');
+      px(ctx, sk.x + 7, sk.y + 14, PAL.gold);
     }
   } else if (job === 'Glassblower') {
-    const f = at(2, 1);
-    rect(ctx, f.x - 12, f.y - 4, 34, 28, '#4a3524');
-    disc(ctx, f.x + 5, f.y + 10, 9, '#e8604a');
-    disc(ctx, f.x + 5, f.y + 10, 5, PAL.gold2);
-    for (let i = 0; i < 3; i++) {
-      const sh = at(8, 1 + i);
-      rect(ctx, sh.x, sh.y + 8, 80, 2, PAL.wood2);
-      for (let k = 0; k < 6; k++) {
-        rect(ctx, sh.x + 4 + k * 13, sh.y + 1, 6, 7, k % 2 ? '#8fd6f0' : '#a9dcf5');
-        px(ctx, sh.x + 6 + k * 13, sh.y, PAL.white);
+    const f = at(0, 0);
+    rect(ctx, f.x + 2, f.y + 6, 34, 24, '#6b4423');
+    disc(ctx, f.x + 19, f.y + 20, 9, '#e8626f');
+    disc(ctx, f.x + 19, f.y + 20, 5, '#f7cc55');
+    glow(f.x + 19, f.y + 20, 9, '#f0a13c');
+    for (let i = 0; i < 2; i++) {
+      const sh = at(5, i);
+      rect(ctx, sh.x, sh.y + 12, 100, 3, SUN.wood3);
+      for (let k = 0; k < 7; k++) {
+        rect(ctx, sh.x + 4 + k * 14, sh.y + 4, 6, 8, k % 2 ? '#8fd6f0' : '#a9dcf5');
+        px(ctx, sh.x + 6 + k * 14, sh.y + 3, PAL.white);
       }
     }
   } else if (job === 'Quarryman') {
     for (let i = 0; i < 5; i++) {
-      const b = at(2 + i * 2, 1);
-      rect(ctx, b.x - 8, b.y + (i % 2) * 6, 18, 14, PAL.stone2);
-      rect(ctx, b.x - 8, b.y + (i % 2) * 6, 18, 3, PAL.stone3);
-      frame(ctx, b.x - 8, b.y + (i % 2) * 6, 18, 14, PAL.stone0);
+      const b = at(1 + i * 2, 0);
+      rect(ctx, b.x, b.y + 4 + (i % 2) * 6, 20, 15, '#b6bcc4');
+      rect(ctx, b.x, b.y + 4 + (i % 2) * 6, 20, 3, '#cfd5dc');
+      frame(ctx, b.x, b.y + 4 + (i % 2) * 6, 20, 15, '#5a636e');
     }
-    const w = at(14, 2);
-    rect(ctx, w.x, w.y, 26, 10, PAL.stone1);
-    disc(ctx, w.x + 4, w.y + 12, 5, PAL.ink);
-    rect(ctx, w.x + 24, w.y - 6, 3, 12, PAL.wood2);
+    const w = at(12, 1);
+    rect(ctx, w.x, w.y, 26, 10, '#8a919b');
+    disc(ctx, w.x + 4, w.y + 12, 5, PAL.ink2);
+    rect(ctx, w.x + 24, w.y - 6, 3, 12, SUN.wood2);
   }
 }
 
@@ -127,6 +146,14 @@ export const site = {
   hint: '', pile: [],
 };
 
+/** Where the fixed points of the room are, in view pixels. */
+export function geometry() {
+  return {
+    cell: CELL, cols: COLS, rows: ROWS, roomX: ROOM_X, roomY: ROOM_Y,
+    npc: npcPos(), pile: pilePos(), repair: repairPos(),
+  };
+}
+
 export function openSite(npcId) {
   const s = story();
   const npc = NPCS[npcId];
@@ -135,8 +162,8 @@ export function openSite(npcId) {
   // one blueprint slot per ordered piece, laid out along the far wall
   const slots = wants.map((id, i) => ({
     id,
-    cx: 4 + (i % 4) * 5,
-    cy: 3 + Math.floor(i / 4) * 4,
+    cx: 3 + (i % 3) * 4,
+    cy: 2 + Math.floor(i / 3) * 3,
     filled: false,
     quality: 0,
   }));
@@ -166,9 +193,9 @@ const inRoom = (x, y) => x > ROOM_X + 8 && x < ROOM_X + COLS * CELL - 8
 const slotAt = (x, y) => site.slots.find((s) => !s.filled
   && Math.abs(x - (ROOM_X + s.cx * CELL)) < 20 && Math.abs(y - (ROOM_Y + s.cy * CELL)) < 20);
 
-const npcPos = () => ({ x: ROOM_X + (COLS - 4) * CELL, y: ROOM_Y + 3 * CELL });
+const npcPos = () => ({ x: ROOM_X + (COLS - 2) * CELL, y: ROOM_Y + 5 * CELL });
 const pilePos = () => ({ x: ROOM_X + 2 * CELL, y: ROOM_Y + (ROWS - 2) * CELL });
-const repairPos = () => ({ x: ROOM_X + (COLS - 3) * CELL, y: ROOM_Y + (ROWS - 3) * CELL });
+const repairPos = () => ({ x: ROOM_X + 1 * CELL, y: ROOM_Y + 3 * CELL });
 
 // ------------------------------------------------------------------ update
 export function updateSite(dt) {
@@ -285,92 +312,114 @@ function tryHandover() {
 }
 
 // -------------------------------------------------------------------- draw
-/** A beaver from above: round back, ears, and that unmistakable tail. */
-function topBeaver(ctx, x, y, face, opts = {}) {
-  const fur = opts.fur || PAL.fur2;
-  ctx.globalAlpha = 0.28;
-  disc(ctx, Math.round(x), Math.round(y) + 5, 8, PAL.black);
-  ctx.globalAlpha = 1;
-  // tail, trailing behind
-  rect(ctx, Math.round(x) - (face > 0 ? 12 : -4), Math.round(y) - 2, 9, 5, PAL.fur1);
-  disc(ctx, Math.round(x), Math.round(y), 8, fur);
-  disc(ctx, Math.round(x), Math.round(y) - 1, 6, opts.light || PAL.fur3);
-  // head end
-  disc(ctx, Math.round(x) + face * 5, Math.round(y) - 2, 5, fur);
-  disc(ctx, Math.round(x) + face * 6, Math.round(y) - 3, 3, opts.light || PAL.fur4);
-  px(ctx, Math.round(x) + face * 8, Math.round(y) - 3, PAL.ink);
-  disc(ctx, Math.round(x) + face * 2, Math.round(y) - 6, 2, PAL.fur1);
-  if (opts.tone) rect(ctx, Math.round(x) - 4, Math.round(y) - 1, 8, 4, opts.tone);
+/** Which way the player is facing, from how they are moving. */
+function heroDir(p) {
+  if (Math.abs(p.vx) > Math.abs(p.vy)) return p.vx > 0 ? 'right' : 'left';
+  if (Math.abs(p.vy) > 4) return p.vy > 0 ? 'down' : 'up';
+  return site.lastDir || 'down';
 }
 
 function drawRoom(ctx, t) {
   const th = THEMES[site.theme];
-  // outside: whatever this customer lives among
-  rect(ctx, 0, 0, VIEW_W, VIEW_H, '#6b8a5a');
+  const rw = COLS * CELL, rh = ROWS * CELL;
+
+  // ---- outside: bright turf, a path to the door, flower beds under the walls
+  rect(ctx, 0, 0, VIEW_W, VIEW_H, SUN.grass1);
   const rng = rngFrom(1717);
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 300; i++) {
     const gx = rng() * VIEW_W, gy = rng() * VIEW_H;
-    px(ctx, Math.round(gx), Math.round(gy), rng() > 0.5 ? '#5f7d4e' : '#7c9a68');
+    px(ctx, Math.round(gx), Math.round(gy), rng() > 0.5 ? SUN.grass0 : SUN.grass2);
   }
-  // a path up to the door, and the heron waiting on the grass
-  rect(ctx, ROOM_X + COLS * CELL / 2 - 16, ROOM_Y + ROWS * CELL, 32, VIEW_H, '#b1936a');
-  for (let y = ROOM_Y + ROWS * CELL; y < VIEW_H; y += 6) rect(ctx, ROOM_X + COLS * CELL / 2 - 16, y, 32, 1, '#98795a');
+  for (let i = 0; i < 60; i++) {
+    const gx = Math.round(rng() * VIEW_W), gy = Math.round(rng() * VIEW_H);
+    const kind = rng();
+    if (kind < 0.4) { px(ctx, gx, gy, '#f7cc55'); px(ctx, gx, gy + 1, SUN.grass0); }
+    else if (kind < 0.7) { px(ctx, gx, gy, '#f2f2f2'); px(ctx, gx + 1, gy, '#f2f2f2'); }
+    else { px(ctx, gx, gy, '#e8626f'); px(ctx, gx, gy + 1, SUN.grass0); }
+  }
+  // the path up to the door
+  const pathX = ROOM_X + rw / 2 - 14;
+  rect(ctx, pathX, ROOM_Y + rh, 28, VIEW_H, '#a3854f');
+  for (let y = ROOM_Y + rh; y < VIEW_H; y += 7) rect(ctx, pathX, y, 28, 1, '#8f7442');
+  for (let i = 0; i < 14; i++) {
+    px(ctx, pathX + 2 + ((i * 7) % 24), ROOM_Y + rh + 4 + i * 5, '#c9c0b5');
+  }
 
-  // walls, drawn with a lit top edge so the room reads as a box from above
-  rect(ctx, ROOM_X - 6, ROOM_Y - 12, COLS * CELL + 12, ROWS * CELL + 18, th.wall);
-  rect(ctx, ROOM_X - 6, ROOM_Y - 12, COLS * CELL + 12, 4, PAL.wood3);
-  frame(ctx, ROOM_X - 6, ROOM_Y - 12, COLS * CELL + 12, ROWS * CELL + 18, PAL.wood0);
+  // ---- the cabin shell, seen from above: thick walls with a lit top edge
+  const wallT = 8;
+  rect(ctx, ROOM_X - wallT, ROOM_Y - wallT - 6, rw + wallT * 2, rh + wallT * 2 + 6, th.wall);
+  rect(ctx, ROOM_X - wallT, ROOM_Y - wallT - 6, rw + wallT * 2, 4, '#a3583f');   // roof edge
+  rect(ctx, ROOM_X - wallT, ROOM_Y - wallT - 2, rw + wallT * 2, 3, 'rgba(255,255,255,0.14)');
+  frame(ctx, ROOM_X - wallT, ROOM_Y - wallT - 6, rw + wallT * 2, rh + wallT * 2 + 6, SUN.wood0);
+  ctx.globalAlpha = 0.22;
+  rect(ctx, ROOM_X - wallT, ROOM_Y + rh + wallT, rw + wallT * 2, 3, PAL.black);
+  ctx.globalAlpha = 1;
 
-  // floorboards
+  // ---- the floor, laid in boards two tiles wide
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const x = ROOM_X + c * CELL, y = ROOM_Y + r * CELL;
-      rect(ctx, x, y, CELL, CELL, (r + c) % 2 ? th.floor[0] : th.floor[1]);
-      rect(ctx, x, y, CELL, 1, 'rgba(255,255,255,0.06)');
+      rect(ctx, x, y, CELL, CELL, (r + Math.floor(c / 2)) % 2 ? th.floor[0] : th.floor[1]);
+      rect(ctx, x, y, CELL, 1, 'rgba(255,255,255,0.08)');
+      rect(ctx, x, y + CELL - 1, CELL, 1, 'rgba(0,0,0,0.10)');
+      px(ctx, x + 3, y + 6, 'rgba(0,0,0,0.10)');
+      px(ctx, x + 11, y + 11, 'rgba(255,255,255,0.06)');
     }
   }
-  for (let r = 0; r <= ROWS; r++) rect(ctx, ROOM_X, ROOM_Y + r * CELL, COLS * CELL, 1, 'rgba(0,0,0,0.14)');
+  // skirting inside the walls
+  rect(ctx, ROOM_X, ROOM_Y, rw, 3, 'rgba(0,0,0,0.18)');
+  rect(ctx, ROOM_X, ROOM_Y + rh - 2, rw, 2, 'rgba(0,0,0,0.12)');
 
-  // the rug, and the light from the window falling across it
-  const rx = ROOM_X + 6 * CELL, ry = ROOM_Y + 5 * CELL, rw = 8 * CELL, rh = 4 * CELL;
-  rect(ctx, rx, ry, rw, rh, th.rug);
-  frame(ctx, rx, ry, rw, rh, PAL.paper3);
-  frame(ctx, rx + 4, ry + 4, rw - 8, rh - 8, PAL.paper2);
-  // a woven pattern, or it reads as a painted rectangle
-  ctx.globalAlpha = 0.4;
-  for (let y = ry + 8; y < ry + rh - 8; y += 4) rect(ctx, rx + 8, y, rw - 16, 1, PAL.ink2);
+  // ---- the rug, woven, with a fringe
+  const rx = ROOM_X + 5 * CELL, ry = ROOM_Y + 4 * CELL, rugW = 6 * CELL, rugH = 3 * CELL;
+  rect(ctx, rx, ry, rugW, rugH, th.rug);
+  frame(ctx, rx, ry, rugW, rugH, PAL.paper2);
+  frame(ctx, rx + 3, ry + 3, rugW - 6, rugH - 6, 'rgba(255,255,255,0.35)');
+  ctx.globalAlpha = 0.3;
+  for (let y = ry + 6; y < ry + rugH - 6; y += 3) rect(ctx, rx + 6, y, rugW - 12, 1, PAL.ink2);
   ctx.globalAlpha = 1;
-  for (let i = 0; i < 5; i++) {
-    const dx = rx + rw / 2 - 32 + i * 16;
+  for (let i = 0; i < 4; i++) {
+    const dx = rx + rugW / 2 - 24 + i * 16;
     for (let k = 0; k < 5; k++) {
-      px(ctx, dx + k - 2, ry + rh / 2 - 2 + Math.abs(k - 2), PAL.paper2);
-      px(ctx, dx + k - 2, ry + rh / 2 + 2 - Math.abs(k - 2), PAL.paper2);
+      px(ctx, dx + k - 2, ry + rugH / 2 - 2 + Math.abs(k - 2), PAL.paper2);
+      px(ctx, dx + k - 2, ry + rugH / 2 + 2 - Math.abs(k - 2), PAL.paper2);
     }
   }
-  // fringe at both ends
-  for (let x = rx; x < rx + rw; x += 3) {
+  for (let x = rx; x < rx + rugW; x += 3) {
     rect(ctx, x, ry - 2, 1, 2, PAL.paper2);
-    rect(ctx, x, ry + rh, 1, 2, PAL.paper2);
+    rect(ctx, x, ry + rugH, 1, 2, PAL.paper2);
   }
-  ctx.globalAlpha = 0.12;
-  ctx.fillStyle = '#ffe9b0';
-  ctx.beginPath();
-  ctx.moveTo(ROOM_X + 3 * CELL, ROOM_Y);
-  ctx.lineTo(ROOM_X + 7 * CELL, ROOM_Y);
-  ctx.lineTo(ROOM_X + 11 * CELL, ROOM_Y + ROWS * CELL);
-  ctx.lineTo(ROOM_X + 5 * CELL, ROOM_Y + ROWS * CELL);
-  ctx.fill();
+
+  // ---- daylight through the windows, falling across the boards
+  ctx.globalAlpha = 0.13;
+  ctx.fillStyle = '#fff0c0';
+  for (const c of [2, 9]) {
+    ctx.beginPath();
+    ctx.moveTo(ROOM_X + c * CELL, ROOM_Y);
+    ctx.lineTo(ROOM_X + (c + 3) * CELL, ROOM_Y);
+    ctx.lineTo(ROOM_X + (c + 5) * CELL, ROOM_Y + rh);
+    ctx.lineTo(ROOM_X + (c + 2) * CELL, ROOM_Y + rh);
+    ctx.fill();
+  }
   ctx.globalAlpha = 1;
 
-  // door at the bottom, windows in the back wall
-  rect(ctx, ROOM_X + COLS * CELL / 2 - 18, ROOM_Y + ROWS * CELL, 36, 6, PAL.wood2);
-  rect(ctx, ROOM_X + COLS * CELL / 2 - 14, ROOM_Y + ROWS * CELL + 6, 28, 10, '#8d5f36');
-  for (const c of [3, 15]) {
-    rect(ctx, ROOM_X + c * CELL, ROOM_Y - 12, 4 * CELL, 6, '#cfe6f2');
-    frame(ctx, ROOM_X + c * CELL, ROOM_Y - 12, 4 * CELL, 6, PAL.wood0);
-    rect(ctx, ROOM_X + c * CELL + 2 * CELL, ROOM_Y - 12, 2, 6, PAL.wood0);
+  // ---- door at the bottom, windows in the back wall
+  const doorX = ROOM_X + rw / 2 - 16;
+  rect(ctx, doorX, ROOM_Y + rh, 32, wallT, SUN.wood2);
+  rect(ctx, doorX, ROOM_Y + rh, 32, 2, SUN.wood4);
+  rect(ctx, doorX + 2, ROOM_Y + rh + 2, 28, wallT - 3, SUN.wood1);
+  for (const c of [2, 9]) {
+    const wx = ROOM_X + c * CELL;
+    rect(ctx, wx, ROOM_Y - wallT - 2, 3 * CELL, 7, '#a3ddfa');
+    rect(ctx, wx, ROOM_Y - wallT - 2, 3 * CELL, 3, '#cdeeff');
+    frame(ctx, wx - 1, ROOM_Y - wallT - 3, 3 * CELL + 2, 9, SUN.wood2);
+    rect(ctx, wx + 1.5 * CELL, ROOM_Y - wallT - 2, 2, 7, SUN.wood2);
+    // a window box, because these are people's homes
+    rect(ctx, wx + 4, ROOM_Y - wallT + 5, 3 * CELL - 8, 4, '#b5714f');
+    for (let i = 0; i < 5; i++) px(ctx, wx + 7 + i * 8, ROOM_Y - wallT + 4, i % 2 ? '#e8626f' : '#f7cc55');
   }
-  // whatever this customer does for a living, standing against the back wall
+
+  // whatever this customer does for a living, along the back wall
   tradeFixtures(ctx, NPCS[site.npc].job, t);
 }
 
@@ -426,13 +475,12 @@ function drawSlotGhosts(ctx, t) {
 function drawNpc(ctx, t) {
   const npc = NPCS[site.npc];
   const p = npcPos();
-  const bob = Math.sin(t * 1.8) * 1.5;
-  topBeaver(ctx, p.x, p.y + bob, -1, { fur: npc.tone, light: PAL.fur4, tone: null });
-  // a name tag, and their trade under it
-  const label = npc.name.toUpperCase();
-  text(ctx, label, p.x, p.y - 20, PAL.white, { align: 'center', shadow: PAL.ink });
+  const ears = { rabbit: 'long', squirrel: 'tuft', hedgehog: 'tuft' }[npc.species] || 'round';
+  drawTop(ctx, npcTop(npc.tone, Math.floor(t * 1.6) % 2, { ears }), p.x, p.y + 6, -1);
+  // a name tag, and their standing with you under it
+  text(ctx, npc.name.toUpperCase(), p.x, p.y - 22, PAL.white, { align: 'center', shadow: PAL.ink });
   for (let i = 0; i < 5; i++) {
-    rect(ctx, p.x - 10 + i * 5, p.y - 28, 4, 4, i < friendRank(site.npc) ? PAL.red2 : 'rgba(0,0,0,0.4)');
+    rect(ctx, p.x - 10 + i * 5, p.y - 30, 4, 4, i < friendRank(site.npc) ? PAL.red2 : 'rgba(0,0,0,0.4)');
   }
 
   if (site.talking > 0 || site.hint) {
@@ -440,7 +488,7 @@ function drawNpc(ctx, t) {
     const lines = wrap(say, 140);
     const w = 152, h = 8 + lines.length * 9;
     const bx = Math.max(4, Math.min(VIEW_W - w - 4, p.x - w / 2));
-    const by = p.y - 34 - h;
+    const by = p.y - 36 - h;
     ctx.fillStyle = 'rgba(242,226,191,0.95)';
     ctx.fillRect(bx, by, w, h);
     frame(ctx, bx, by, w, h, PAL.wood0);
@@ -458,7 +506,9 @@ function drawPile(ctx, t) {
   site.pile.slice(0, 3).forEach((id, i) => {
     drawFurniture(ctx, id, p.x - 8 + i * 9, p.y - 6 - i * 3, { scale: 1 });
   });
-  text(ctx, `${site.pile.length} IN THE VAN`, p.x, p.y + 12, PAL.paper, { align: 'center', shadow: PAL.ink });
+  const vl = `${site.pile.length} IN THE VAN`;
+  rect(ctx, p.x - (vl.length * 6 + 6) / 2, p.y + 11, vl.length * 6 + 6, 10, 'rgba(13,10,9,0.66)');
+  text(ctx, vl, p.x, p.y + 13, PAL.paper, { align: 'center' });
 }
 
 function drawRepair(ctx, t) {
@@ -470,8 +520,10 @@ function drawRepair(ctx, t) {
   for (let i = 0; i < 4; i++) {
     line(ctx, p.x - 12 + i * 8, p.y - 6, p.x - 8 + i * 8, p.y + 6, PAL.ink);
   }
-  text(ctx, REPAIRS[site.repair].name.toUpperCase(), p.x, p.y - 20, flash ? PAL.red2 : PAL.gold2,
-       { align: 'center', shadow: PAL.ink });
+  const label = REPAIRS[site.repair].name.toUpperCase();
+  const lw = label.length * 6 + 6;
+  rect(ctx, p.x - lw / 2, p.y - 22, lw, 10, 'rgba(13,10,9,0.72)');
+  text(ctx, label, p.x, p.y - 20, flash ? PAL.red2 : PAL.gold2, { align: 'center' });
   if (site.repairing > 0) bar(ctx, p.x - 22, p.y + 10, 44, 5, site.repairing, PAL.grass3);
 }
 
@@ -481,18 +533,35 @@ export function drawSite(ctx, t) {
 
   // everything on the floor, sorted so nearer things overlap farther ones
   const items = [];
-  for (const s of site.slots) if (s.filled) items.push({ y: ROOM_Y + s.cy * CELL + 8, draw: () => drawFurniture(ctx, s.id, ROOM_X + s.cx * CELL, ROOM_Y + s.cy * CELL + 8, { scale: 1 }) });
-  for (const e of site.extras) items.push({ y: e.y, draw: () => drawFurniture(ctx, e.id, e.x, e.y, { scale: 1 }) });
+  const grounded = (id, x, y) => {
+    ctx.globalAlpha = 0.2;
+    for (let dy = -2; dy <= 2; dy++) {
+      const span = Math.round(14 * Math.sqrt(Math.max(0, 1 - (dy * dy) / 6)));
+      rect(ctx, x - span, y - 1 + dy, span * 2, 1, PAL.black);
+    }
+    ctx.globalAlpha = 1;
+    drawFurniture(ctx, id, x, y, { scale: 1 });
+  };
+  for (const s of site.slots) {
+    if (!s.filled) continue;
+    const fx = ROOM_X + s.cx * CELL, fy = ROOM_Y + s.cy * CELL + 8;
+    items.push({ y: fy, draw: () => grounded(s.id, fx, fy) });
+  }
+  for (const e of site.extras) items.push({ y: e.y, draw: () => grounded(e.id, e.x, e.y) });
   items.push({ y: npcPos().y, draw: () => drawNpc(ctx, t) });
   items.push({ y: pilePos().y, draw: () => drawPile(ctx, t) });
   items.push({ y: repairPos().y, draw: () => drawRepair(ctx, t) });
   const p = site.player;
   items.push({ y: p.y, draw: () => {
-    topBeaver(ctx, p.x, p.y, p.face);
+    const moving = Math.abs(p.vx) + Math.abs(p.vy) > 12;
+    const dir = heroDir(p);
+    site.lastDir = dir;
+    const frame = moving ? Math.floor(t * 8) % 4 : 0;
+    drawTop(ctx, heroTop(dir, frame), p.x, p.y + 6, 1);
     if (site.carry) {
       // carried over your head, wobbling as you walk
       const wob = Math.sin(t * 9) * 1.5;
-      drawFurniture(ctx, site.carry, p.x, p.y - 16 + wob, { scale: 1 });
+      drawFurniture(ctx, site.carry, p.x, p.y - 20 + wob, { scale: 1 });
     }
   } });
   items.sort((a, b) => a.y - b.y);

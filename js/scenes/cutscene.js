@@ -7,6 +7,7 @@
 import { VIEW_W, VIEW_H } from '../config.js';
 import { PAL, surface, rect, frame, px, disc, line, text, textWidth, bigText, wrap, rngFrom }
   from '../gfx/pixel.js';
+import { hero, elder, granny, foxMedic, SUN } from '../gfx/actors.js';
 import { pressed, input } from '../input.js';
 import { sfx } from '../audio.js';
 
@@ -18,133 +19,69 @@ export const cut = {
 const buf = surface(VIEW_W, VIEW_H);
 
 // --------------------------------------------------------------- figures
-/**
- * A beaver, drawn at any height. Small enough to be cheap, big enough to act -
- * the poses are what carry the scene, so they are all here in one place.
- */
-function beaver(ctx, x, base, h, opts = {}) {
-  const fur = opts.fur || PAL.fur2;
-  const dark = opts.dark || PAL.fur1;
-  const light = opts.light || PAL.fur3;
-  const face = opts.face === undefined ? 1 : opts.face;
-  const pose = opts.pose || 'stand';
-  const w = Math.round(h * 0.46);
-  const headR = Math.max(3, Math.round(h * 0.19));
-  let hipY = base - Math.round(h * 0.32);
-  let headY = base - h + headR;
-  let bodyH = hipY - (headY + headR) + 2;
+// The cast is the game's own sprite bank, blown up by a whole number - so the
+// beaver in the cutscene is the beaver you play, not a lookalike.
 
-  if (pose === 'sit') { hipY = base - Math.round(h * 0.12); headY = base - h * 0.82; bodyH = hipY - (headY + headR) + 2; }
-  if (pose === 'kneel') { hipY = base - Math.round(h * 0.14); headY = base - h * 0.78; bodyH = hipY - (headY + headR) + 2; }
+const tintCache = new Map();
 
-  // lying down is a different animal entirely - draw it flat and leave
-  if (pose === 'lie') {
-    const len = Math.round(h * 0.92);
-    rect(ctx, x - (len >> 1), base - Math.round(h * 0.2), len, Math.round(h * 0.2), fur);
-    rect(ctx, x - (len >> 1), base - Math.round(h * 0.2), len, 2, light);
-    disc(ctx, x - (len >> 1) - 1, base - Math.round(h * 0.22), headR, fur);
-    disc(ctx, x - (len >> 1) - 1, base - Math.round(h * 0.22), headR - 2, light);
-    px(ctx, x - (len >> 1) - 3, base - Math.round(h * 0.24), PAL.ink);   // closed eye
-    rect(ctx, x - (len >> 1) - 5, base - Math.round(h * 0.24), 3, 1, PAL.ink);
-    // tail, flat on the tiles
-    rect(ctx, x + (len >> 1), base - Math.round(h * 0.1), Math.round(h * 0.3), Math.round(h * 0.1), dark);
-    if (opts.shawl) rect(ctx, x - 2, base - Math.round(h * 0.2), Math.round(len * 0.5), Math.round(h * 0.2), opts.shawl);
-    return;
-  }
-
-  // tail
-  const tailX = face > 0 ? x - (w >> 1) - Math.round(h * 0.22) : x + (w >> 1);
-  if (pose !== 'sit') {
-    rect(ctx, tailX, hipY - 2, Math.round(h * 0.24), Math.max(2, Math.round(h * 0.12)), dark);
-    rect(ctx, tailX, hipY - 2, Math.round(h * 0.24), 1, PAL.fur1);
-  }
-
-  // legs
-  const legH = base - hipY;
-  if (legH > 0) {
-    if (pose === 'run') {
-      rect(ctx, x - (w >> 1), hipY, Math.max(2, w >> 2), legH, dark);
-      rect(ctx, x + 1, hipY, Math.max(2, w >> 2), Math.round(legH * 0.7), dark);
-      rect(ctx, x + 1 + (w >> 2), hipY + Math.round(legH * 0.7), Math.max(2, w >> 2), 2, dark);
-    } else if (pose === 'kneel') {
-      rect(ctx, x - (w >> 1), hipY, w, Math.max(2, legH), dark);
-    } else {
-      rect(ctx, x - (w >> 1) + 1, hipY, Math.max(2, w >> 2), legH, dark);
-      rect(ctx, x + (w >> 2) - 1, hipY, Math.max(2, w >> 2), legH, dark);
-    }
-    // feet
-    rect(ctx, x - (w >> 1) + (face > 0 ? 1 : -1), base - 1, Math.round(w * 0.7), 1, PAL.dirt1);
-  }
-
-  // body
-  rect(ctx, x - (w >> 1), headY + headR - 1, w, Math.max(3, bodyH), fur);
-  rect(ctx, x - (w >> 1), headY + headR - 1, w, 2, light);
-  if (opts.apron) {
-    rect(ctx, x - (w >> 1) + 1, headY + headR + 2, w - 2, Math.max(2, bodyH - 3), opts.apron);
-    px(ctx, x - 1, headY + headR + 1, PAL.paper3);
-  }
-  if (opts.shawl) rect(ctx, x - (w >> 1) - 1, headY + headR, w + 2, Math.max(2, Math.round(bodyH * 0.5)), opts.shawl);
-
-  // arms
-  const armY = headY + headR + Math.round(bodyH * 0.2);
-  const reach = opts.reach || 0;
-  if (reach) {
-    rect(ctx, face > 0 ? x + (w >> 1) : x - (w >> 1) - reach, armY, reach, 2, light);
-  } else if (pose === 'run') {
-    rect(ctx, face > 0 ? x + (w >> 1) - 1 : x - (w >> 1) - 2, armY - 1, 3, 2, light);
-  } else {
-    rect(ctx, x - (w >> 1) - 1, armY, 2, Math.max(2, Math.round(bodyH * 0.5)), light);
-    rect(ctx, x + (w >> 1) - 1, armY, 2, Math.max(2, Math.round(bodyH * 0.5)), light);
-  }
-
-  // head
-  disc(ctx, x, headY, headR, fur);
-  disc(ctx, x, headY - 1, headR - 1, light);
-  const mz = face > 0 ? headR - 1 : -(headR - 1);
-  rect(ctx, x + mz - (face > 0 ? 0 : 2), headY, 3, 2, PAL.fur4);  // muzzle
-  px(ctx, x + mz + (face > 0 ? 1 : -2), headY, PAL.ink);          // nose
-  disc(ctx, x - Math.round(headR * 0.5) * -face, headY + headR - 1, 1, PAL.paper);  // tooth
-  // ear
-  disc(ctx, x - Math.round(headR * 0.6) * face, headY - Math.round(headR * 0.6), Math.max(1, headR >> 2), dark);
-  // eye
-  const eyeX = x + Math.round(headR * 0.4) * face;
-  if (opts.closed) rect(ctx, eyeX - 1, headY - 1, 3, 1, PAL.ink);
-  else { px(ctx, eyeX, headY - 1, PAL.ink); px(ctx, eyeX + face, headY - 1, PAL.ink); }
-  if (opts.glasses) {
-    frame(ctx, eyeX - 2, headY - 3, 5, 4, PAL.stone3);
-    px(ctx, eyeX + 3 * face, headY - 2, PAL.stone2);
-  }
-  if (opts.cap) { rect(ctx, x - headR, headY - headR - 1, headR * 2, 2, opts.cap); rect(ctx, x - headR + (face > 0 ? headR : -1), headY - headR + 1, headR, 1, opts.cap); }
+/** A silhouette of any sprite, for the shots that want shapes and no detail. */
+function silhouette(img, colour) {
+  const key = `${img.width}x${img.height}:${colour}:${img.__id || (img.__id = Math.random())}`;
+  let found = tintCache.get(key);
+  if (found) return found;
+  const s = surface(img.width, img.height);
+  s.ctx.drawImage(img, 0, 0);
+  s.ctx.globalCompositeOperation = 'source-in';
+  s.ctx.fillStyle = colour;
+  s.ctx.fillRect(0, 0, img.width, img.height);
+  if (tintCache.size > 40) tintCache.clear();
+  tintCache.set(key, s.canvas);
+  return s.canvas;
 }
 
-/** A fox in medic orange, running or carrying. */
-function fox(ctx, x, base, h, opts = {}) {
-  const fur = opts.fur || '#d2691e';
+/** Blit a sprite standing on (x, base), scaled and optionally facing left. */
+function actor(ctx, img, x, base, scale, face, tone) {
+  const src = tone ? silhouette(img, tone) : img;
+  const w = img.width * scale, h = img.height * scale;
+  const dx = Math.round(x - w / 2), dy = Math.round(base - h);
+  ctx.save();
+  if (face < 0) {
+    ctx.translate(dx + w, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(src, 0, 0, img.width, img.height, 0, 0, w, h);
+  } else {
+    ctx.drawImage(src, 0, 0, img.width, img.height, dx, dy, w, h);
+  }
+  ctx.restore();
+}
+
+/**
+ * The one call every shot uses. `opts` keeps the old vocabulary - glasses means
+ * grandpa, shawl means grandma - and picks the right sprite and pose for it.
+ */
+function beaver(ctx, x, base, h, opts = {}) {
   const face = opts.face === undefined ? 1 : opts.face;
-  const w = Math.round(h * 0.4);
-  const headR = Math.max(3, Math.round(h * 0.17));
-  const hipY = base - Math.round(h * 0.34);
-  rect(ctx, x - (w >> 1), hipY, 2, base - hipY, PAL.ink2);
-  rect(ctx, x + 1, hipY, 2, Math.round((base - hipY) * (opts.stride ? 0.7 : 1)), PAL.ink2);
-  // brush tail
-  const tx = face > 0 ? x - (w >> 1) - Math.round(h * 0.3) : x + (w >> 1);
-  rect(ctx, tx, hipY - 4, Math.round(h * 0.3), 4, fur);
-  rect(ctx, tx, hipY - 4, Math.round(h * 0.12), 4, PAL.paper);
-  // body in a medic vest
-  rect(ctx, x - (w >> 1), base - h + headR, w, hipY - (base - h + headR), fur);
-  rect(ctx, x - (w >> 1), base - h + headR + 2, w, Math.round(h * 0.22), '#f2f2f2');
-  px(ctx, x, base - h + headR + 4, PAL.red);
-  rect(ctx, x - 1, base - h + headR + 3, 3, 1, PAL.red);
-  rect(ctx, x, base - h + headR + 2, 1, 3, PAL.red);
-  // head with a long snout and black-tipped ears
-  const headY = base - h + headR;
-  disc(ctx, x, headY, headR, fur);
-  rect(ctx, x + (face > 0 ? headR - 1 : -headR - 2), headY, 4, 2, fur);
-  px(ctx, x + (face > 0 ? headR + 2 : -headR - 2), headY, PAL.ink);
-  rect(ctx, x - headR + 1, headY - headR - 1, 2, 3, PAL.ink2);
-  rect(ctx, x + headR - 2, headY - headR - 1, 2, 3, PAL.ink2);
-  px(ctx, x + Math.round(headR * 0.4) * face, headY - 1, PAL.ink);
-  if (opts.reach) rect(ctx, face > 0 ? x + (w >> 1) : x - (w >> 1) - opts.reach, headY + headR, opts.reach, 2, fur);
+  const scale = h >= 24 ? 2 : 1;
+  const pose = opts.pose || 'stand';
+  const frame = opts.frame === undefined ? 0 : opts.frame;
+  let img;
+  if (opts.shawl && (pose === 'lie' || pose === 'sit')) {
+    img = granny(pose === 'lie' ? 'lie' : 'sit');
+  } else if (opts.glasses) {
+    const map = { sit: 'sit', kneel: 'kneel', stand: opts.reach ? 'hold' : 'idle', run: 'walk' };
+    img = elder(map[pose] || 'idle', frame);
+  } else {
+    const map = { stand: 'idle', sit: 'sit', kneel: 'kneel', run: 'run', lie: 'sit' };
+    img = hero(map[pose] || 'idle', frame);
+  }
+  actor(ctx, img, x, base, scale, face, opts.fur === PAL.black ? PAL.ink : null);
+}
+
+/** A fox medic, same treatment. */
+function fox(ctx, x, base, h, opts = {}) {
+  const face = opts.face === undefined ? 1 : opts.face;
+  const scale = h >= 24 ? 2 : 1;
+  actor(ctx, foxMedic(opts.frame || 0, !!opts.reach), x, base, scale, face, null);
 }
 
 // ---------------------------------------------------------------- weather
@@ -193,18 +130,22 @@ const ACT = 176;        // the lowest a subject's feet may sit
 
 /** Grandpa's living room: panelled walls, a rug, a rain-streaked window. */
 function paintLivingRoom(ctx, t, opts = {}) {
-  rect(ctx, 0, 0, VIEW_W, FLOOR, '#4a3524');
-  for (let x = 0; x < VIEW_W; x += 24) rect(ctx, x, 0, 1, FLOOR, '#3d2b1d');
-  rect(ctx, 0, FLOOR - 26, VIEW_W, 4, '#5c4029');       // dado rail
-  rect(ctx, 0, FLOOR - 26, VIEW_W, 1, PAL.wood3);
+  // panelled wall, lit warm - the room should feel like somewhere you live
+  rect(ctx, 0, 0, VIEW_W, FLOOR, SUN.wall1);
+  for (let x = 0; x < VIEW_W; x += 22) {
+    rect(ctx, x, 0, 2, FLOOR, SUN.wall0);
+    rect(ctx, x + 2, 0, 1, FLOOR, SUN.wall2);
+  }
+  rect(ctx, 0, FLOOR - 26, VIEW_W, 4, SUN.wood2);       // dado rail
+  rect(ctx, 0, FLOOR - 26, VIEW_W, 1, SUN.wood4);
   // floorboards, receding
-  rect(ctx, 0, FLOOR, VIEW_W, VIEW_H - FLOOR, PAL.wood2);
-  for (let y = FLOOR; y < VIEW_H; y += 7) rect(ctx, 0, y, VIEW_W, 1, PAL.wood1);
-  for (let x = -20; x < VIEW_W + 40; x += 40) line(ctx, x, FLOOR, x - 16, VIEW_H, PAL.wood1);
+  rect(ctx, 0, FLOOR, VIEW_W, VIEW_H - FLOOR, SUN.floor1);
+  for (let y = FLOOR; y < VIEW_H; y += 7) rect(ctx, 0, y, VIEW_W, 1, SUN.floor0);
+  for (let x = -20; x < VIEW_W + 40; x += 40) line(ctx, x, FLOOR, x - 16, VIEW_H, SUN.floor0);
   // rug
-  rect(ctx, 116, FLOOR + 12, 236, 38, '#8e3b3b');
-  frame(ctx, 116, FLOOR + 12, 236, 38, '#b5514b');
-  frame(ctx, 122, FLOOR + 16, 224, 30, '#6d2c2c');
+  rect(ctx, 116, FLOOR + 12, 236, 38, '#c04a4a');
+  frame(ctx, 116, FLOOR + 12, 236, 38, '#e8626f');
+  frame(ctx, 122, FLOOR + 16, 224, 30, '#8e3b3b');
   for (let i = 0; i < 10; i++) px(ctx, 136 + i * 22, FLOOR + 30, PAL.gold);
 
   // window, with the rain on the outside where it belongs
@@ -233,10 +174,14 @@ function paintLivingRoom(ctx, t, opts = {}) {
 function paintTV(ctx, t, opts = {}) {
   const x = 200, y = 62, w = 84, h = 60;
   const flick = 0.75 + Math.sin(t * 22) * 0.06 + Math.sin(t * 7.3) * 0.05;
-  // the glow it throws, laid in first as soft discs so it has no hard edges
-  ctx.globalAlpha = 0.07 * flick;
-  for (let i = 1; i <= 4; i++) disc(ctx, x + w / 2, y + h / 2, 60 + i * 22, PAL.sky3);
-  ctx.globalAlpha = 1;
+  // the light it throws into the room, as one soft falloff
+  const cx = x + w / 2, cy = y + h / 2;
+  const g = ctx.createRadialGradient(cx, cy, 20, cx, cy, 190);
+  g.addColorStop(0, `rgba(169, 220, 245, ${0.16 * flick})`);
+  g.addColorStop(0.5, `rgba(169, 220, 245, ${0.06 * flick})`);
+  g.addColorStop(1, 'rgba(169, 220, 245, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   // cabinet
   rect(ctx, x - 6, y - 6, w + 12, h + 16, PAL.wood1);
   frame(ctx, x - 6, y - 6, w + 12, h + 16, PAL.wood0);
@@ -273,43 +218,94 @@ function paintTV(ctx, t, opts = {}) {
 }
 
 function paintArmchair(ctx, x, base) {
-  rect(ctx, x - 22, base - 32, 44, 32, '#6b4b6b');
-  rect(ctx, x - 22, base - 32, 44, 3, '#8a648a');
-  rect(ctx, x - 26, base - 20, 6, 20, '#5a3f5a');
-  rect(ctx, x + 20, base - 20, 6, 20, '#5a3f5a');
-  rect(ctx, x - 20, base - 11, 40, 6, '#7d597d');
-  rect(ctx, x - 18, base, 4, 4, PAL.wood0);
-  rect(ctx, x + 14, base, 4, 4, PAL.wood0);
+  // a wing chair big enough for a grandfather to disappear into
+  rect(ctx, x - 28, base - 46, 56, 46, '#7a557a');
+  rect(ctx, x - 28, base - 46, 56, 4, '#9a719a');
+  rect(ctx, x - 34, base - 30, 8, 30, '#664666');
+  rect(ctx, x + 26, base - 30, 8, 30, '#664666');
+  rect(ctx, x - 34, base - 30, 8, 3, '#8a648a');
+  rect(ctx, x + 26, base - 30, 8, 3, '#8a648a');
+  rect(ctx, x - 26, base - 16, 52, 8, '#8a648a');   // the seat cushion
+  rect(ctx, x - 26, base - 16, 52, 2, '#a97ea9');
+  for (let i = 0; i < 5; i++) px(ctx, x - 18 + i * 9, base - 34, '#9a719a');
+  rect(ctx, x - 24, base, 5, 4, PAL.wood0);
+  rect(ctx, x + 19, base, 5, 4, PAL.wood0);
 }
 
-/** The kitchen, seen from the doorway. */
+/** The kitchen, seen from the doorway: cupboards, a stove, tiles, warm light. */
 function paintKitchen(ctx, t) {
   const floorY = 138;
-  rect(ctx, 0, 0, VIEW_W, floorY, '#5a6b58');
-  for (let y = 0; y < floorY; y += 12) rect(ctx, 0, y, VIEW_W, 1, '#4d5c4c');
-  rect(ctx, 0, floorY, VIEW_W, VIEW_H - floorY, '#b1936a');
-  for (let x = -10; x < VIEW_W + 30; x += 22) line(ctx, x, floorY, x - 22, VIEW_H, '#98795a');
-  for (let y = floorY; y < VIEW_H; y += 10) rect(ctx, 0, y, VIEW_W, 1, '#98795a');
-  // counter and shelves
-  rect(ctx, 268, 92, 212, 10, PAL.wood2);
-  rect(ctx, 268, 102, 212, 36, PAL.wood1);
-  for (let i = 0; i < 4; i++) rect(ctx, 278 + i * 52, 108, 38, 24, PAL.wood0);
-  rect(ctx, 278, 58, 190, 3, PAL.wood2);
-  for (let i = 0; i < 5; i++) {
-    rect(ctx, 286 + i * 32, 44, 14, 14, i % 2 ? PAL.paper2 : PAL.sky3);
-    rect(ctx, 286 + i * 32, 44, 14, 2, PAL.white);
+  // wall: sage above a tiled splashback
+  rect(ctx, 0, 0, VIEW_W, floorY, '#9cbc90');
+  rect(ctx, 0, 0, VIEW_W, 40, '#a8c69c');
+  for (let y = 0; y < floorY; y += 14) rect(ctx, 0, y, VIEW_W, 1, '#8aa87f');
+  rect(ctx, 0, 74, VIEW_W, 30, '#e8e2d0');
+  for (let x = 0; x < VIEW_W; x += 12) rect(ctx, x, 74, 1, 30, '#cfc8b4');
+  for (let y = 74; y < 104; y += 10) rect(ctx, 0, y, VIEW_W, 1, '#cfc8b4');
+  rect(ctx, 0, 104, VIEW_W, 3, '#b5714f');
+
+  // floor tiles, in proper perspective rows
+  rect(ctx, 0, floorY, VIEW_W, VIEW_H - floorY, '#e0c9a0');
+  for (let i = 0; i < 9; i++) {
+    const y = floorY + i * 14;
+    rect(ctx, 0, y, VIEW_W, 1, '#c4a97c');
+    const off = (i % 2) * 16;
+    for (let x = -16; x < VIEW_W + 32; x += 32) {
+      rect(ctx, x + off - Math.round(i * 2.5), y, 1, 14, '#c4a97c');
+    }
   }
-  // the stove, with the kettle still steaming
-  rect(ctx, 54, 104, 66, 34, PAL.stone1);
-  rect(ctx, 54, 104, 66, 4, PAL.stone2);
-  disc(ctx, 76, 100, 8, PAL.stone0);
-  disc(ctx, 76, 98, 7, PAL.stone1);
-  rect(ctx, 70, 92, 12, 8, PAL.stone2);
-  rect(ctx, 82, 94, 4, 2, PAL.stone3);
+
+  // run of cupboards along the right, with a worktop
+  rect(ctx, 250, 104, 230, 8, '#c58a45');
+  rect(ctx, 250, 104, 230, 2, '#e6b166');
+  rect(ctx, 250, 112, 230, 26, '#7c5130');
   for (let i = 0; i < 4; i++) {
-    const sy = 86 - ((t * 14 + i * 8) % 26);
-    px(ctx, 76 + Math.round(Math.sin(sy * 0.3) * 3), sy, PAL.paper2);
+    const cx = 258 + i * 56;
+    rect(ctx, cx, 116, 48, 18, '#96602f');
+    rect(ctx, cx, 116, 48, 1, '#c58a45');
+    frame(ctx, cx, 116, 48, 18, '#5a3a24');
+    rect(ctx, cx + 20, 122, 8, 2, '#e0d7cb');
   }
+  // open shelf with jars
+  rect(ctx, 268, 58, 200, 4, '#c58a45');
+  rect(ctx, 268, 62, 200, 2, '#7c5130');
+  for (let i = 0; i < 6; i++) {
+    const jx = 276 + i * 32;
+    rect(ctx, jx, 44, 14, 14, i % 2 ? '#e8e2d0' : '#a3ddfa');
+    rect(ctx, jx, 44, 14, 3, '#f2f2f2');
+    rect(ctx, jx + 2, 48, 10, 8, i % 3 ? '#e8626f' : '#f2c14e');
+    frame(ctx, jx, 44, 14, 14, '#5a3a24');
+  }
+
+  // the stove: black iron, one ring lit, the kettle still on it
+  rect(ctx, 44, 100, 78, 38, '#3f4650');
+  rect(ctx, 44, 100, 78, 4, '#6d7783');
+  rect(ctx, 48, 110, 70, 24, '#2f353d');
+  rect(ctx, 52, 114, 30, 16, '#4a525c');
+  rect(ctx, 52, 114, 30, 2, '#7c8189');
+  disc(ctx, 96, 122, 7, '#1d2228');
+  disc(ctx, 96, 122, 5, Math.floor(t * 3) % 2 ? '#e8626f' : '#f0a13c');
+  ctx.globalAlpha = 0.14;
+  for (let i = 1; i <= 3; i++) disc(ctx, 96, 122, 6 + i * 5, '#f0a13c');
+  ctx.globalAlpha = 1;
+  // kettle
+  disc(ctx, 66, 96, 9, '#8a919b');
+  disc(ctx, 66, 94, 7, '#a9b0b8');
+  rect(ctx, 60, 86, 12, 8, '#8a919b');
+  rect(ctx, 72, 88, 5, 2, '#cfd5dc');
+  rect(ctx, 62, 84, 8, 2, '#5a636e');
+  for (let i = 0; i < 4; i++) {
+    const sy = 80 - ((t * 13 + i * 7) % 26);
+    ctx.globalAlpha = 0.6 - i * 0.12;
+    disc(ctx, 66 + Math.round(Math.sin(sy * 0.3) * 4), Math.round(sy), 2 + i, PAL.paper2);
+    ctx.globalAlpha = 1;
+  }
+
+  // a strip of light from the doorway we are standing in
+  ctx.globalAlpha = 0.1;
+  ctx.fillStyle = '#fff0c0';
+  ctx.fillRect(340, floorY, 140, VIEW_H - floorY);
+  ctx.globalAlpha = 1;
 }
 
 // ------------------------------------------------------------------ shots
@@ -450,50 +446,127 @@ const SHOTS = {
   },
 
   ambulance(ctx, u, t) {
-    rect(ctx, 0, 0, VIEW_W, VIEW_H, PAL.night0);
-    rect(ctx, 0, 116, VIEW_W, VIEW_H - 116, '#1a2418');
-    // the house
-    rect(ctx, 306, 46, 152, 82, '#3a2b20');
-    rect(ctx, 298, 32, 168, 16, '#4a3526');
-    for (let i = 0; i < 3; i++) {
-      rect(ctx, 320 + i * 46, 60, 28, 24, i === 1 ? '#f0d79a' : '#22303c');
-      frame(ctx, 320 + i * 46, 60, 28, 24, PAL.wood0);
-    }
-    rect(ctx, 362, 94, 26, 34, PAL.wood1);
-    rect(ctx, 364, 96, 22, 32, '#f0d79a');
-    for (let i = 0; i < 8; i++) rect(ctx, 196 + i * 24, 138 + i, 22, 7, PAL.stone1);
-    // the ambulance
-    const vanX = Math.round(26 + (1 - Math.min(1, u * 2.2)) * -70);
-    rect(ctx, vanX, 82, 112, 50, '#f2f2f2');
-    rect(ctx, vanX, 82, 112, 7, PAL.red);
-    rect(ctx, vanX + 76, 90, 36, 24, '#22303c');
-    rect(ctx, vanX + 10, 96, 38, 28, PAL.red);
-    rect(ctx, vanX + 25, 96, 8, 28, PAL.white);
-    rect(ctx, vanX + 10, 106, 38, 6, PAL.white);
-    for (const wx of [vanX + 24, vanX + 90]) {
-      disc(ctx, wx, 134, 9, PAL.ink);
-      disc(ctx, wx, 134, 4, PAL.stone2);
-    }
+    // outside the cabin, in the rain, blue and red washing over everything
     const beat = Math.floor(t * 6) % 2;
-    rect(ctx, vanX + 38, 74, 18, 8, beat ? PAL.red2 : '#5a1a1a');
-    rect(ctx, vanX + 58, 74, 18, 8, beat ? '#1a2a5a' : PAL.blue2);
-    ctx.globalAlpha = 0.2;
-    ctx.fillStyle = beat ? PAL.red2 : PAL.blue2;
+    rect(ctx, 0, 0, VIEW_W, VIEW_H, '#1b1836');
+    rect(ctx, 0, 0, VIEW_W, 70, '#231d42');
+    // a few stars where the cloud breaks
+    const stars = rngFrom(88);
+    for (let i = 0; i < 30; i++) {
+      px(ctx, Math.round(stars() * VIEW_W), Math.round(stars() * 60),
+         stars() > 0.7 ? PAL.white : '#8f9ac4');
+    }
+    // wet grass, and the path up to the door
+    rect(ctx, 0, 116, VIEW_W, VIEW_H - 116, '#25401f');
+    rect(ctx, 0, 116, VIEW_W, 3, '#31521f');
+    const gr = rngFrom(4242);
+    for (let i = 0; i < 200; i++) {
+      const gx = Math.round(gr() * VIEW_W), gy = 118 + Math.round(gr() * (VIEW_H - 120));
+      px(ctx, gx, gy, gr() > 0.6 ? '#31521f' : '#1d3319');
+    }
+    // stepping stones, running from the door down to where the van waits
+    for (let i = 0; i < 10; i++) {
+      const sx2 = 350 - i * 30, sy2 = 152 + i * 8;
+      rect(ctx, sx2, sy2, 24, 7, '#4a4f52');
+      rect(ctx, sx2, sy2, 24, 2, '#6a7075');
+      px(ctx, sx2 + 4, sy2 + 4, '#3a3f42');
+    }
+
+    // ---- the cabin: same build as the workshop, at night, door standing open
+    const hx = 372, hb = 150, hw = 128, hh = 78;
+    ctx.globalAlpha = 0.3;
+    rect(ctx, hx - hw / 2 - 4, hb - 2, hw + 8, 4, PAL.black);
+    ctx.globalAlpha = 1;
+    rect(ctx, hx - hw / 2, hb - hh + 22, hw, hh - 22, '#4a3524');
+    for (let i = 0; i < 4; i++) rect(ctx, hx - hw / 2, hb - hh + 28 + i * 12, hw, 1, '#3a2a1c');
+    rect(ctx, hx - hw / 2, hb - hh + 22, 5, hh - 22, '#5f4229');
+    rect(ctx, hx + hw / 2 - 5, hb - hh + 22, 5, hh - 22, '#5f4229');
+    for (let r = 0; r < 3; r++) {
+      const rw = hw + 14 - r * 10, rx = hx - rw / 2, ry = hb - hh + 16 - r * 7;
+      rect(ctx, rx, ry, rw, 8, r === 0 ? '#5f2f24' : '#73382a');
+      rect(ctx, rx, ry, rw, 2, '#8a4433');
+      for (let k = 0; k < rw; k += 9) px(ctx, rx + k + (r % 2 ? 4 : 0), ry + 5, '#4a241b');
+    }
+    // chimney
+    rect(ctx, hx + hw / 2 - 34, hb - hh - 14, 14, 22, '#4a5058');
+    rect(ctx, hx + hw / 2 - 36, hb - hh - 16, 18, 3, '#5f676f');
+    // windows: one lit, one dark
+    [[hx - 40, true], [hx + 26, false]].forEach(([wx, lit]) => {
+      rect(ctx, wx, hb - hh + 34, 24, 20, lit ? '#f7cc55' : '#1d2a35');
+      if (lit) rect(ctx, wx, hb - hh + 34, 24, 6, '#fff3c4');
+      frame(ctx, wx - 2, hb - hh + 32, 28, 24, '#5f4229');
+      rect(ctx, wx + 11, hb - hh + 34, 2, 20, '#5f4229');
+      if (lit) {
+        ctx.globalAlpha = 0.12;
+        disc(ctx, wx + 12, hb - hh + 44, 24, PAL.gold2);
+        ctx.globalAlpha = 1;
+      }
+    });
+    // the front door, open, light spilling down the step
+    rect(ctx, hx - 12, hb - 38, 24, 38, '#2a1f18');
+    rect(ctx, hx - 10, hb - 36, 20, 36, '#f7cc55');
+    rect(ctx, hx + 12, hb - 38, 6, 38, '#5f4229');
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#fff0c0';
+    ctx.beginPath();
+    ctx.moveTo(hx - 10, hb); ctx.lineTo(hx + 10, hb);
+    ctx.lineTo(hx + 30, VIEW_H); ctx.lineTo(hx - 34, VIEW_H);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // ---- the ambulance: a stubby van, lights going
+    const vanX = Math.round(20 + (1 - Math.min(1, u * 2.2)) * -80);
+    const vb = 152;
+    ctx.globalAlpha = 0.3;
+    rect(ctx, vanX + 4, vb - 2, 108, 4, PAL.black);
+    ctx.globalAlpha = 1;
+    rect(ctx, vanX, vb - 52, 116, 44, '#e8e8ea');
+    rect(ctx, vanX, vb - 52, 116, 6, '#c9c9cc');
+    rect(ctx, vanX, vb - 24, 116, 6, PAL.red);
+    rect(ctx, vanX + 74, vb - 46, 40, 20, '#2a3a48');      // cab windows
+    rect(ctx, vanX + 78, vb - 43, 14, 14, '#3f5666');
+    rect(ctx, vanX + 96, vb - 43, 14, 14, '#3f5666');
+    rect(ctx, vanX + 10, vb - 44, 36, 24, PAL.red);        // the cross
+    rect(ctx, vanX + 24, vb - 44, 8, 24, PAL.white);
+    rect(ctx, vanX + 10, vb - 36, 36, 8, PAL.white);
+    rect(ctx, vanX + 56, vb - 44, 12, 20, '#c9c9cc');      // rear doors
+    for (const wx of [vanX + 26, vanX + 92]) {
+      disc(ctx, wx, vb - 6, 9, '#1d1712');
+      disc(ctx, wx, vb - 6, 5, '#5a636e');
+      px(ctx, wx, vb - 6, '#a9b0b8');
+    }
+    // light bar, and the cones it throws
+    rect(ctx, vanX + 38, vb - 58, 18, 7, beat ? '#ff5a4a' : '#5a1a1a');
+    rect(ctx, vanX + 58, vb - 58, 18, 7, beat ? '#1a2a5a' : '#6f9aff');
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = beat ? '#ff5a4a' : '#6f9aff';
+    ctx.beginPath();
+    ctx.moveTo(vanX + 47, vb - 55);
+    ctx.lineTo(VIEW_W, vb - 96);
+    ctx.lineTo(VIEW_W, vb + 10);
+    ctx.fill();
+    ctx.globalAlpha = 0.1;
+    ctx.fillStyle = beat ? '#ff5a4a' : '#6f9aff';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     ctx.globalAlpha = 1;
-    // the fox crew, carrying her out
+
+    // ---- the fox crew, carrying her down the path
     const march = Math.min(1, Math.max(0, (u - 0.25) * 1.8));
-    const fx = Math.round(356 - march * 190);
+    const fx = Math.round(330 - march * 180);
     const bob = Math.sin(t * 9) * 1.5;
-    fox(ctx, fx + 44, Math.round(ACT - 6 + bob), 40, { face: -1, stride: true, reach: 10 });
-    fox(ctx, fx - 4, Math.round(ACT - 6 - bob), 40, { face: -1, stride: false, reach: 10 });
-    rect(ctx, fx - 2, Math.round(ACT - 28 + bob * 0.4), 50, 5, PAL.stone2);
-    rect(ctx, fx + 2, Math.round(ACT - 32 + bob * 0.4), 42, 5, PAL.purple2);
-    fox(ctx, fx + 90, ACT - 4, 36, { face: -1, stride: true });
-    // the two of you in the doorway
-    beaver(ctx, 372, 128, 26, { pose: 'stand', face: -1, fur: PAL.fur1, glasses: true });
-    beaver(ctx, 390, 128, 21, { pose: 'stand', face: -1 });
-    rain(ctx, t, 130, 0.55, 3);
+    const step = Math.floor(t * 8) % 4;
+    fox(ctx, fx + 52, Math.round(184 + bob), 40, { face: -1, frame: step, reach: true });
+    fox(ctx, fx - 6, Math.round(186 - bob), 40, { face: -1, frame: (step + 2) % 4, reach: true });
+    // the stretcher between them, with her shawl over it
+    rect(ctx, fx - 6, Math.round(160 + bob * 0.4), 62, 5, '#8a919b');
+    rect(ctx, fx - 6, Math.round(160 + bob * 0.4), 62, 2, '#cfd5dc');
+    rect(ctx, fx, Math.round(154 + bob * 0.4), 50, 6, PAL.purple2);
+    rect(ctx, fx + 4, Math.round(152 + bob * 0.4), 14, 4, '#c9a678');
+    fox(ctx, fx + 104, 188, 36, { face: -1, frame: (step + 1) % 4 });
+    // you and grandpa in the doorway, watching them go
+    beaver(ctx, hx - 4, hb, 30, { pose: 'stand', face: -1, glasses: true });
+    beaver(ctx, hx + 18, hb, 26, { pose: 'stand', face: -1 });
+    rain(ctx, t, 140, 0.5, 3);
     vignette(ctx, 0.5);
   },
 

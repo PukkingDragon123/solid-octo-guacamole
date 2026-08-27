@@ -18,11 +18,17 @@ no dependencies.
 
 ![The opening cutscene: grandpa in his armchair, the television glowing, rain on the window](screenshot-cutscene.png)
 
+![The fox stretcher crew carrying grandma down the path in the rain, lights washing the cabin](screenshot-ambulance.png)
+
 ![Grandpa's workshop: the tool wall, the saw bench, and the hospital bill pinned by the phone](screenshot-workshop.png)
+
+![The workshop from outside: a shingled cabin with lit windows and smoke from the chimney](screenshot-cabin.png)
 
 ![The timber out the back: a side-scrolling wood of tall trees leaning in the wind](screenshot-forest.png)
 
-![A customer's room from above: the weaver's loom, furniture fitted to the plan, a pane to reglaze](screenshot-site.png)
+![A customer's room from above: the baker's oven, furniture fitted to the plan, a pane to reglaze](screenshot-site.png)
+
+![The same room in blueprint mode: a dimensioned plan with dashed outlines for every piece](screenshot-blueprint.png)
 
 ![The camp, seen side-on, with the dam visible across the pond behind it](screenshot-camp.png)
 
@@ -196,6 +202,25 @@ you build shows up on the horizon back at camp.
 Butterflies drift over the meadow, fish rise in the pond, fireflies come out
 after dusk and flocks cross overhead. None of it is part of the simulation; it
 is there so the valley is never still.
+
+## The look
+
+Bright, saturated, low-resolution pixel art on a 16px tile grid - the cosy
+farm-sim register, warm rather than gloomy. Outlines are a warm brown, never pure
+black; light is a visible thing (sun through a window, a lit oven mouth, a lamp
+over a bench) and everything that stands on the floor casts a soft contact
+shadow so it sits in the room rather than on top of it.
+
+The cast is one sprite bank. `js/gfx/actors.js` builds every character to the
+same 16x18 pattern as the beaver you already played - same fur ramp, same 1px
+outline, same ground shadow - and adds the poses the story needs: chopping,
+sawing, driving screws, carrying, kneeling, lying down, plus four-direction
+top-down versions for the scenes played from above. The cutscene blows those same
+sprites up by a whole number, so the beaver in the film is the beaver in the game.
+
+Rooms are small on purpose. The workshop is one cabin you can nearly see all of
+at once, and a customer's place is fifteen tiles by eight - big enough to fit the
+furniture out, small enough that the character never looks like a doll in a hall.
 
 ## How the art works
 

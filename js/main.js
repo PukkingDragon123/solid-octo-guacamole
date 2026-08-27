@@ -35,10 +35,11 @@ import { runRobots } from './shop.js';
 import { cut, playCutscene, updateCutscene, drawCutscene } from './scenes/cutscene.js';
 import { drawWorkshop, drawWorkshopHud, nearestWorkStation, WORKSHOP_GROUND, WORKSHOP_BOUNDS }
   from './scenes/workshop.js';
+import { drawHeroSide } from './gfx/actors.js';
 import { forest, makeForest, growForest, updateForest, drawForest, drawForestHud, fell,
          FOREST_GROUND, FOREST_BOUNDS } from './scenes/forest.js';
 import { travel, openMap, closeMap, updateTravel, drawMap, drawFlight, startFlight } from './scenes/travel.js';
-import { site, openSite, closeSite, updateSite, drawSite } from './scenes/site.js';
+import { site, openSite, closeSite, updateSite, drawSite, geometry as siteGeometry } from './scenes/site.js';
 import { phone, openPhone, closePhone, drawPhone } from './ui/phone.js';
 import { saw, openSaw, closeSaw, updateSaw, drawSaw, canSaw } from './minigames/saw.js';
 import { asm, openAssemble, closeAssemble, updateAssemble, drawAssemble } from './minigames/assemble.js';
@@ -95,7 +96,7 @@ function newGame() {
   G.story = freshStory();
   G.forest = makeForest();
   G.mode = 'workshop';
-  G.player = { x: 240, y: WORKSHOP_GROUND, vx: 0, vy: 0, onGround: true, face: 1 };
+  G.player = { x: 200, y: WORKSHOP_GROUND, vx: 0, vy: 0, onGround: true, face: 1 };
   pushOffer(makeOffer('willow', {
     pool: ['stool'], count: 1, repair: null,
     text: 'WILLOW HERE - YOUR GRANDPA SAID YOU ARE TAKING WORK NOW. I NEED A STOOL.',
@@ -256,7 +257,7 @@ function goMode(mode, colour) {
     G.mode = mode;
     G.ui.build = null;
     const ground = groundFor(mode);
-    if (mode === 'workshop') G.player.x = travel.dest ? 700 : 240;
+    if (mode === 'workshop') G.player.x = travel.dest ? 424 : 200;
     else if (mode === 'forest') G.player.x = 120;
     else if (mode === 'camp') G.player.x = 352;
     G.player.y = ground;
@@ -502,11 +503,14 @@ function render(real) {
   if (G.mode === 'workshop' || G.mode === 'forest') {
     if (G.mode === 'workshop') {
       drawWorkshop(ctx, wall);
-      drawPlayer(ctx, G.player, wall);
+      drawHeroSide(ctx, cam.sx(G.player.x), G.player.y, wall, { player: G.player });
       if (!campaignOverlay()) drawWorkshopHud(ctx, wall);
     } else {
       drawForest(ctx, wall);
-      drawPlayer(ctx, G.player, wall);
+      // chopping shows in the world, not just on the meter
+      const pose = fell.phase === 'chop' ? 'chop' : fell.phase === 'blackout' ? 'sit' : null;
+      drawHeroSide(ctx, cam.sx(G.player.x), G.player.y, wall,
+                   { player: G.player, pose, face: fell.phase === 'chop' ? fell.dodgeSide * -1 : undefined });
       drawForestHud(ctx, wall);
     }
     drawCampaignHud(ctx, real);
@@ -715,7 +719,7 @@ Object.defineProperty(window, '__inputSnapshot', { get: () => ({ mx: input.mx, m
 
 window.DAMIT = {
   // the campaign, exposed so the story can be poked at from the console
-  story, fell, forest, site, travel, phone, saw, asm, buildMenu, cut,
+  story, fell, forest, site, travel, phone, saw, asm, buildMenu, cut, siteGeometry,
   goMode, openPhone, openSaw, openAssemble, openMap, openSite, playCutscene,
   G, simulate, newGame, placeSite, completeSite, spawnRequest, makeBeaver,
   toggleTreeMark, takeOff, landHome, openStation, closeStation,

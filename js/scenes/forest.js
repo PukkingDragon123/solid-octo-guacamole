@@ -6,6 +6,7 @@ import { VIEW_W, VIEW_H } from '../config.js';
 import { G, toast } from '../state.js';
 import { PAL, rect, frame, px, text, disc, line, rngFrom, wrap, sprite, surface, outline, rimLight }
   from '../gfx/pixel.js';
+import { SUN } from '../gfx/actors.js';
 import { cam } from '../gfx/screen.js';
 import * as S from '../gfx/sprites.js';
 import { input, pressed, held } from '../input.js';
@@ -26,10 +27,14 @@ const FALL_LENGTH = 120;      // how far the trunk reaches when it lands
 // are drawn far bigger than the tile trees in the valley view - a side-scrolling
 // wood only works if the trees tower over you.
 const SPECIES = [
-  { name: 'fir',    trunk: [PAL.wood1, PAL.wood2, PAL.wood0], leaf: [PAL.leaf0, PAL.leaf1, PAL.leaf2, PAL.leaf3], shape: 'cone' },
-  { name: 'oak',    trunk: [PAL.wood2, PAL.wood3, PAL.wood1], leaf: ['#2d6330', '#40853c', '#5aa74b', '#74b94d'], shape: 'round' },
-  { name: 'birch',  trunk: ['#a3906f', '#c9b68f', '#4a4034'], leaf: ['#3f7a37', '#559a3f', '#74b94d', '#9ad35f'], shape: 'round' },
-  { name: 'maple',  trunk: [PAL.wood1, PAL.wood2, PAL.wood0], leaf: ['#8a4a1e', '#b4652a', '#d98b35', '#e0a02e'], shape: 'round' },
+  { name: 'fir',   trunk: ['#5a3b22', '#7c5130', '#3b2a1c'],
+    leaf: ['#276b2c', '#3d9438', '#5cba48', '#86dd63'], shape: 'cone' },
+  { name: 'oak',   trunk: ['#7c5130', '#a06c3f', '#4a3524'],
+    leaf: ['#2f7a33', '#4aa53f', '#6fce50', '#9ce870'], shape: 'round' },
+  { name: 'birch', trunk: ['#c9b68f', '#e6d7b0', '#6b5c45'],
+    leaf: ['#3d9438', '#5cba48', '#86dd63', '#b6f086'], shape: 'round' },
+  { name: 'maple', trunk: ['#6b4423', '#96602f', '#3b2a1c'],
+    leaf: ['#a8501c', '#d1742a', '#f0a13c', '#f7cc55'], shape: 'round' },
 ];
 
 export const FOREST_SPECIES = SPECIES.length;
@@ -162,7 +167,7 @@ export function makeForest() {
   const trees = [];
   for (let i = 0; i < 13; i++) {
     trees.push({
-      x: 170 + i * 128 + Math.round(rng() * 40),
+      x: 240 + i * 122 + Math.round(rng() * 36),
       size: rng(),
       // weighted, so no one species takes over the wood
       variant: [0, 1, 1, 2, 3, 3][Math.floor(rng() * 6) % 6],
@@ -426,13 +431,23 @@ function drawFallenTrunk(ctx) {
 export function drawForest(ctx, t) {
   const f = forest();
   // ---- sky and distance
-  const bands = ['#7fb6e6', '#a9dcf5', '#c8e9fa', '#dff3fb'];
+  const bands = [SUN.sky0, SUN.sky1, SUN.sky2, SUN.sky3];
   for (let i = 0; i < bands.length; i++) {
     rect(ctx, 0, Math.round(i * 46), VIEW_W, 46, bands[i]);
   }
+  // a fat sun, low and warm, with soft clouds crossing it
+  disc(ctx, 96, 44, 15, '#fff3c4');
+  ctx.globalAlpha = 0.18;
+  for (let i = 1; i <= 3; i++) disc(ctx, 96, 44, 15 + i * 7, '#fff3c4');
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 5; i++) {
+    const img = S.cloudSprite(i % 2);
+    const cx = ((i * 118 - cam.x * 0.05 - G.time * 4) % (VIEW_W + 140)) - 70;
+    ctx.drawImage(img, Math.round(cx < -70 ? cx + VIEW_W + 140 : cx), 14 + (i * 23) % 46);
+  }
   // far ridge lines, three deep
   for (let layer = 0; layer < 3; layer++) {
-    const tone = ['#8fa9c0', '#6e8a72', '#4f7355'][layer];
+    const tone = ['#93b8d8', '#6fa763', '#4f9243'][layer];
     const yBase = 96 + layer * 22;
     const par = 0.06 + layer * 0.05;
     const rng = rngFrom(900 + layer);
@@ -472,18 +487,63 @@ export function drawForest(ctx, t) {
   }
 
   // ---- ground
-  const strip = S.groundStrip();
-  for (let x = Math.floor(cam.x / 16) * 16 - 16; x < cam.x + VIEW_W + 16; x += 16) {
-    ctx.drawImage(strip, cam.sx(x), FOREST_GROUND);
-  }
-  rect(ctx, 0, FOREST_GROUND + 40, VIEW_W, VIEW_H, PAL.dirt0);
-  const soil = rngFrom(2211);
-  for (let i = 0; i < 130; i++) {
-    const sx = cam.sx(soil() * FOREST_W);
-    const sy = FOREST_GROUND + 40 + soil() * (VIEW_H - FOREST_GROUND - 40);
+  // a proper depth of turf, then the soil under it
+  rect(ctx, 0, FOREST_GROUND, VIEW_W, 56, SUN.grass1);
+  rect(ctx, 0, FOREST_GROUND, VIEW_W, 4, SUN.grass2);
+  rect(ctx, 0, FOREST_GROUND, VIEW_W, 2, SUN.grass3);
+  const turf = rngFrom(4477);
+  for (let i = 0; i < 200; i++) {
+    const sx = cam.sx(turf() * FOREST_W);
     if (sx < 0 || sx > VIEW_W) continue;
-    px(ctx, sx, Math.round(sy), soil() > 0.6 ? PAL.dirt1 : PAL.dirt2);
+    const ty = FOREST_GROUND + 3 + Math.round(turf() * 48);
+    px(ctx, sx, ty, turf() > 0.5 ? SUN.grass0 : SUN.grass2);
   }
+  rect(ctx, 0, FOREST_GROUND + 56, VIEW_W, VIEW_H, '#6b4a2c');
+  rect(ctx, 0, FOREST_GROUND + 56, VIEW_W, 3, '#8a5f38');
+  const soil = rngFrom(2211);
+  for (let i = 0; i < 150; i++) {
+    const sx = cam.sx(soil() * FOREST_W);
+    const sy = FOREST_GROUND + 59 + soil() * (VIEW_H - FOREST_GROUND - 59);
+    if (sx < 0 || sx > VIEW_W) continue;
+    const roll = soil();
+    px(ctx, sx, Math.round(sy), roll > 0.7 ? '#a3743f' : roll > 0.35 ? '#7c5130' : '#55361f');
+  }
+  // a beaten path along the walk line, with stones trodden into it
+  const pathY = FOREST_GROUND + 20;
+  rect(ctx, 0, pathY, VIEW_W, 14, '#a3854f');
+  rect(ctx, 0, pathY, VIEW_W, 2, '#bd9c5f');
+  rect(ctx, 0, pathY + 13, VIEW_W, 1, '#7c6338');
+  const pth = rngFrom(6060);
+  for (let i = 0; i < 120; i++) {
+    const sx = cam.sx(pth() * FOREST_W);
+    if (sx < 0 || sx > VIEW_W) continue;
+    const py = pathY + 2 + Math.round(pth() * 10);
+    const roll = pth();
+    if (roll > 0.85) { rect(ctx, sx, py, 3, 2, '#c9c0b5'); px(ctx, sx, py, PAL.white); }
+    else px(ctx, sx, py, roll > 0.5 ? '#8f7442' : '#b89355');
+  }
+  // ragged edges, so it looks walked rather than drawn
+  for (let x = 0; x < VIEW_W; x += 2) {
+    const wx = x + cam.x;
+    const wob = Math.round(Math.sin(wx * 0.11) * 2 + Math.sin(wx * 0.37) * 1);
+    rect(ctx, x, pathY + wob, 2, 2, SUN.grass1);
+    rect(ctx, x, pathY + 12 - wob, 2, 2, SUN.grass1);
+  }
+
+  // wildflowers and clover on the turf
+  const bloom = rngFrom(9111);
+  for (let i = 0; i < 90; i++) {
+    const sx = cam.sx(bloom() * FOREST_W);
+    const by = FOREST_GROUND + 4 + Math.round(bloom() * 48);
+    if (sx < 0 || sx > VIEW_W) continue;
+    if (Math.abs(by - (pathY + 7)) < 9) continue;      // not on the path
+    const kind = bloom();
+    if (kind < 0.34) { px(ctx, sx, by, '#f7cc55'); px(ctx, sx, by + 1, SUN.grass0); }
+    else if (kind < 0.58) { px(ctx, sx, by, '#f2f2f2'); px(ctx, sx + 1, by, '#f2f2f2'); px(ctx, sx, by + 1, SUN.grass0); }
+    else if (kind < 0.74) { px(ctx, sx, by, '#e8626f'); px(ctx, sx, by + 1, SUN.grass0); }
+    else { px(ctx, sx, by, SUN.grass3); px(ctx, sx + 1, by - 1, SUN.grass4); }
+  }
+
   // dapples of sun coming through the canopy
   ctx.globalAlpha = 0.09;
   const dap = rngFrom(5522);
@@ -516,14 +576,8 @@ export function drawForest(ctx, t) {
   drawFallZone(ctx);
   drawFallenTrunk(ctx);
 
-  // the door back to the workshop
-  const dx = cam.sx(70);
-  rect(ctx, dx - 22, FOREST_GROUND - 60, 44, 60, PAL.wood1);
-  rect(ctx, dx - 26, FOREST_GROUND - 66, 52, 8, PAL.wood2);
-  rect(ctx, dx - 16, FOREST_GROUND - 52, 32, 52, PAL.wood0);
-  rect(ctx, dx - 14, FOREST_GROUND - 50, 28, 48, PAL.wood2);
-  px(ctx, dx + 8, FOREST_GROUND - 28, PAL.gold2);
-  text(ctx, 'WORKSHOP', dx, FOREST_GROUND - 76, PAL.paper, { align: 'center', shadow: PAL.ink });
+  // ---- the back of the workshop, standing in its own clearing
+  drawCabin(ctx, t);
 
   // a fringe of grass right under the camera, so the ground has a near edge
   for (let x = -8; x < VIEW_W + 8; x += 3) {
@@ -546,13 +600,112 @@ export function drawForest(ctx, t) {
   }
 }
 
+/**
+ * Grandpa's cabin, seen from the timber side: shingled roof, warm windows, a
+ * chimney going, and the door you came out of.
+ */
+function drawCabin(ctx, t) {
+  const sx = cam.sx(70);
+  if (sx < -140 || sx > VIEW_W + 140) return;
+  const base = FOREST_GROUND + 2;
+  const w = 118, h = 76;
+  const x = sx - w / 2, y = base - h;
+
+  // ground shadow
+  ctx.globalAlpha = 0.18;
+  for (let dy = -3; dy <= 3; dy++) {
+    const span = Math.round((w / 2 + 6) * Math.sqrt(Math.max(0, 1 - (dy * dy) / 11)));
+    rect(ctx, sx - span, base - 3 + dy, span * 2, 1, PAL.black);
+  }
+  ctx.globalAlpha = 1;
+
+  // walls: warm planks with a lit top edge
+  rect(ctx, x, y + 22, w, h - 22, SUN.wall1);
+  for (let i = 0; i < 4; i++) {
+    rect(ctx, x, y + 26 + i * 12, w, 1, SUN.wall0);
+    rect(ctx, x, y + 27 + i * 12, w, 1, SUN.wall2);
+  }
+  // corner posts
+  rect(ctx, x, y + 22, 5, h - 22, SUN.wood1);
+  rect(ctx, x + w - 5, y + 22, 5, h - 22, SUN.wood1);
+  rect(ctx, x, y + 22, 1, h - 22, SUN.wood3);
+
+  // roof: two courses of shingles with an overhang
+  for (let r = 0; r < 3; r++) {
+    const rw = w + 14 - r * 10;
+    const rx = sx - rw / 2;
+    const ry = y + 16 - r * 7;
+    rect(ctx, rx, ry, rw, 8, r === 0 ? '#8a4b38' : '#a3583f');
+    rect(ctx, rx, ry, rw, 2, '#c06a4a');
+    for (let k = 0; k < rw; k += 9) px(ctx, rx + k + (r % 2 ? 4 : 0), ry + 5, '#7a3f2f');
+  }
+  rect(ctx, sx - 4, y - 6, 8, 8, '#a3583f');
+
+  // chimney, smoking
+  rect(ctx, x + w - 34, y - 14, 14, 22, '#8a8f98');
+  for (let i = 0; i < 3; i++) rect(ctx, x + w - 34, y - 14 + i * 7, 14, 2, '#6d7783');
+  rect(ctx, x + w - 36, y - 16, 18, 3, '#a9b0b8');
+  for (let i = 0; i < 5; i++) {
+    const sy2 = y - 20 - ((t * 12 + i * 8) % 40);
+    const drift = Math.sin(sy2 * 0.12 + t) * 5;
+    ctx.globalAlpha = 0.5 - i * 0.08;
+    disc(ctx, Math.round(x + w - 27 + drift), Math.round(sy2), 3 + i, PAL.paper2);
+    ctx.globalAlpha = 1;
+  }
+
+  // two lit windows
+  for (const wx of [x + 22, x + 76]) {
+    rect(ctx, wx, y + 34, 22, 20, '#f7cc55');
+    rect(ctx, wx, y + 34, 22, 6, '#fff3c4');
+    frame(ctx, wx - 2, y + 32, 26, 24, SUN.wood2);
+    frame(ctx, wx - 3, y + 31, 28, 26, SUN.wood0);
+    rect(ctx, wx + 10, y + 34, 2, 20, SUN.wood2);
+    rect(ctx, wx, y + 43, 22, 2, SUN.wood2);
+    ctx.globalAlpha = 0.12;
+    disc(ctx, wx + 11, y + 44, 22, PAL.gold2);
+    ctx.globalAlpha = 1;
+  }
+
+  // the door, with a step and a lantern beside it
+  const dx = sx - 11;
+  rect(ctx, dx, base - 34, 22, 34, SUN.wood2);
+  rect(ctx, dx, base - 34, 22, 2, SUN.wood4);
+  frame(ctx, dx, base - 34, 22, 34, SUN.wood0);
+  for (let i = 0; i < 3; i++) rect(ctx, dx + 3, base - 30 + i * 10, 16, 8, SUN.wood1);
+  px(ctx, dx + 18, base - 18, PAL.gold2);
+  rect(ctx, dx - 4, base - 3, 30, 3, PAL.stone2);
+  rect(ctx, dx + 26, base - 22, 3, 22, SUN.wood1);
+  disc(ctx, dx + 27, base - 24, 3, PAL.gold2);
+  ctx.globalAlpha = 0.14;
+  disc(ctx, dx + 27, base - 24, 14, PAL.gold2);
+  ctx.globalAlpha = 1;
+
+  // a hand-painted sign over the door
+  rect(ctx, sx - 30, y + 58, 60, 12, SUN.wood3);
+  rect(ctx, sx - 30, y + 58, 60, 1, SUN.wood4);
+  frame(ctx, sx - 30, y + 58, 60, 12, SUN.wood0);
+  text(ctx, 'WORKSHOP', sx, y + 60, PAL.ink, { align: 'center' });
+
+  // a woodpile and a stump chopping block outside
+  for (let i = 0; i < 6; i++) {
+    const lx = x + w + 8 + (i % 3) * 9;
+    const ly = base - 4 - Math.floor(i / 3) * 7;
+    rect(ctx, lx, ly, 8, 6, SUN.wood2);
+    disc(ctx, lx + 1, ly + 3, 2, SUN.wood4);
+  }
+  rect(ctx, x - 26, base - 10, 18, 10, SUN.wood2);
+  rect(ctx, x - 26, base - 10, 18, 3, SUN.wood4);
+  rect(ctx, x - 20, base - 18, 2, 8, SUN.wood1);
+  rect(ctx, x - 23, base - 21, 8, 4, PAL.stone2);
+}
+
 /** The chop meter, the creak warning and the blackout, all drawn over the top. */
 export function drawForestHud(ctx, t) {
   const p = G.player;
   if (fell.phase === 'idle') {
     const tree = nearestTree(p.x);
     if (tree) keyPrompt(ctx, cam.sx(tree.x), FOREST_GROUND - 74, 'E', 'CHOP', t);
-    else if (Math.abs(p.x - 70) < 30) keyPrompt(ctx, cam.sx(70), FOREST_GROUND - 88, 'E', 'GO IN', t);
+    else if (Math.abs(p.x - 70) < 34) keyPrompt(ctx, cam.sx(70), FOREST_GROUND - 46, 'E', 'GO IN', t);
   }
 
   if (fell.phase === 'chop') {
