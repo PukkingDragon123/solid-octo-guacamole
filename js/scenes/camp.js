@@ -12,7 +12,8 @@ export const CAMP_BOUNDS = { w: CAMP_W, h: VIEW_H };
 
 /** Everything you can walk up to and press E on. */
 export const STATIONS = [
-  { id: 'bunkhouse', x: 168, prop: 'bunkhouse', label: 'CREW', reach: 34 },
+  { id: 'home', x: 66, prop: 'homelodge', label: 'YOUR LODGE', reach: 34 },
+  { id: 'bunkhouse', x: 200, prop: 'bunkhouse', label: 'CREW', reach: 34 },
   { id: 'jobboard', x: 352, prop: 'jobboard', label: 'JOB BOARD', reach: 30 },
   { id: 'storehouse', x: 536, prop: 'storehouse', label: 'STORES', reach: 32 },
   { id: 'logpile', x: 712, prop: 'logpile', label: 'LOG SLAM', reach: 28 },
@@ -20,7 +21,7 @@ export const STATIONS = [
 ];
 
 const DECOR = [
-  { prop: 'sawhorse', x: 250 }, { prop: 'bucket', x: 300 },
+  { prop: 'sawhorse', x: 268 }, { prop: 'bucket', x: 300 },
   { prop: 'lantern', x: 420 }, { prop: 'bucket', x: 640 },
   { prop: 'sawhorse', x: 790 }, { prop: 'lantern', x: 860 },
 ];

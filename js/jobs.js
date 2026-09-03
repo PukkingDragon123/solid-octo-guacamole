@@ -44,15 +44,18 @@ export function releaseJob(beaver) {
 export function findJobFor(beaver) {
   const woodFull = G.resources.wood >= G.caps.wood;
   const berriesFull = G.resources.berries >= G.caps.berries;
+  const orders = G.orders || {};
   let best = null, bestScore = -Infinity;
   for (const job of G.jobs) {
     if (job.claimedBy) continue;
     if (job.entity.blocked) continue;
+    if (orders[job.type] === 0) continue;                // the board says leave it
     if (job.type === 'CHOP' && woodFull) continue;       // nowhere to put it
     if (job.type === 'HARVEST' && berriesFull) continue;
     const mult = CREW_JOBS[beaver.role].mult[job.type] || 1;
     const d = dist(beaver.tx, beaver.ty, job.x, job.y);
-    const score = mult * 24 + job.priority * 30 - d;
+    const boost = orders[job.type] === 2 ? 90 : 0;       // pinned to the top of the board
+    const score = mult * 24 + job.priority * 30 + boost - d;
     if (score > bestScore) { bestScore = score; best = job; }
   }
   return best;

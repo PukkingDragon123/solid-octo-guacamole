@@ -19,14 +19,24 @@ import { initInput, input, pressed, held, consume, endFrame } from './input.js';
 import * as S from './gfx/sprites.js';
 
 import { drawValley, drawCursor, drawRider, invalidateGround, buildGround } from './scenes/valley.js';
+import {
+  forest, enterForest, emptyPack, updateForest, drawForest, drawForestHud,
+  nearestTarget, packTotal, packFull, buildStrip, FOREST_BOUNDS, GROUND as FOREST_GROUND, STRIP_W,
+} from './scenes/forest.js';
+import {
+  lodge, enterLodge, drawLodge, drawSlotHints, updateDecorating, cosiness,
+  FLOOR as LODGE_FLOOR, LODGE_BOUNDS,
+} from './scenes/lodge.js';
 import { drawCamp, drawPlayer, nearestStation, CAMP_BOUNDS, STATIONS, skyPhase } from './scenes/camp.js';
-import { updateCampPlayer, updateRider, seatRider } from './player.js';
+import { updateCampPlayer, updateWalker, updateRider, seatRider } from './player.js';
 import { drawResourceStrip, drawDayChip, drawToasts, drawHotbar, drawHint, PAGES } from './ui/hud.js';
 import { drawStation, openStation, closeStation } from './ui/board.js';
 import { keyPrompt, button, panel, scrim, hovering } from './ui/widgets.js';
 import { updateTouch, drawTouchControls, drawOrientationHint, touchUI } from './ui/touch.js';
 import { drawTitleScene, drawTitleText } from './scenes/title.js';
 import { mini, openMinigame, updateMinigame, drawMinigame, canPlay } from './minigame.js';
+import { cutscene, updateCutscene, drawCutscene, advanceCutscene, playCutscene } from './scenes/cutscene.js';
+import { checkStory, startStory } from './story.js';
 
 const CREW_JOBS_KEYS = { logger: 1, hauler: 1, engineer: 1, gardener: 1, forager: 1 };
 const ANIMAL_KEYS = ['duck', 'frog', 'rabbit', 'hedgehog', 'songbird', 'otter', 'turtle',
@@ -45,12 +55,13 @@ let helpOpen = false;
 let tipTimer = 0;
 let waterTimer = 0;
 let autosave = 0;
+let storyTimer = 0;
 
 // ------------------------------------------------------------- new / load
 function newGame() {
   clearSave();
   generateWorld((Math.random() * 1e9) >>> 0);
-  G.resources = { wood: 34, berries: 46, seeds: 14, hearts: 0 };
+  G.resources = { wood: 18, berries: 40, seeds: 12, hearts: 0 };
   G.caps = { wood: 150, berries: 150, seeds: 80 };
   G.beavers = [];
   G.jobs = [];
@@ -59,18 +70,24 @@ function newGame() {
   G.crewCap = 4;
   G.won = false;
   G.log = []; G.toasts = [];
-  G.stats = { felled: 0, planted: 0, built: 0, harvested: 0, paid: 0, missedPay: 0 };
+  G.stats = { felled: 0, planted: 0, built: 0, harvested: 0, paid: 0, missedPay: 0, gathered: 0 };
+  G.story = { seen: {}, done: {}, accepted: false };
+  G.orders = { CHOP: 1, BUILD: 1, PLANT: 1, HARVEST: 1 };
   G.mode = 'camp';
   G.station = null;
   G.player = { x: 352, y: CAMP_GROUND, vx: 0, vy: 0, onGround: true, face: 1 };
+  G.pack = { wood: 0, berries: 0, seeds: 0 };
+  G.packCap = 26;
+  G.forestSite = { lx: 0, ly: 0 };
+  G.decor = {};
   G.rider = { x: 0, y: 0, vx: 0, vy: 0, face: 1, height: 23, bob: 0, flying: false };
   G.ui.build = null;
   G.ui.tab = 'contracts';
   G.ui.focusRequest = null;
   G.ui.hotbarPage = 0;
   resetAnimalPool();
-  G.beavers.push(makeBeaver('logger', G.lodge.x, G.lodge.y));
-  G.beavers.push(makeBeaver('forager', G.lodge.x + 1, G.lodge.y));
+  // You start almost alone: the first loads of timber are yours to fetch.
+  G.beavers.push(makeBeaver('forager', G.lodge.x, G.lodge.y));
   spawnRequest(true);
   seatRider();
   invalidateGround();
@@ -87,9 +104,15 @@ function enterGame() {
   seedCampCritters();
   G.station = null;
   G.ui.hotbarPage = G.ui.hotbarPage || 0;
+  if (G.mode === 'forest') buildStrip();
+  if (!G.decor) G.decor = {};
+  if (!G.orders) G.orders = { CHOP: 1, BUILD: 1, PLANT: 1, HARVEST: 1 };
+  if (!G.story) G.story = { seen: {}, done: {}, accepted: false };
   cam.centreOn(G.mode === 'sky' ? G.rider.x : G.player.x,
                G.mode === 'sky' ? G.rider.y : VIEW_H / 2,
-               G.mode === 'sky' ? SKY_BOUNDS : CAMP_BOUNDS);
+               G.mode === 'sky' ? SKY_BOUNDS
+                 : G.mode === 'forest' ? FOREST_BOUNDS
+                 : G.mode === 'lodge' ? LODGE_BOUNDS : CAMP_BOUNDS);
   screenMode = 'game';
   last = performance.now();
 }
@@ -97,7 +120,7 @@ function enterGame() {
 function startNewGame() {
   newGame();
   enterGame();
-  helpOpen = true;
+  startStory();          // the opening scene, then the help card
 }
 
 function continueGame() {
@@ -160,6 +183,9 @@ function simulate(dt) {
     waterTimer = 0;
     if (before !== G.waterLevel) { invalidateGround(); reseedFish(); }
   }
+  storyTimer += dt;
+  if (storyTimer >= 1) { storyTimer = 0; checkStory(); }
+
   autosave += dt;
   if (autosave >= 30) { autosave = 0; saveGame(); }
 }
@@ -177,6 +203,32 @@ function takeOff() {
     seatRider();
     cam.centreOn(G.rider.x, G.rider.y, SKY_BOUNDS);
     toast('The heron lifts off. Click the valley to put the crew to work.', 'info');
+  }, PAL.sky3);
+}
+
+/** Set the heron down where it is hovering, and climb off into the trees. */
+function landInForest() {
+  const tx = Math.floor(G.rider.x / TILE);
+  const ty = Math.floor(G.rider.y / TILE);
+  const tile = tileAt(tx, ty);
+  if (!tile) return;
+  if (tile.t === 'water' || tile.t === 'pond') { toast('The heron will not land on open water.', 'warn'); return; }
+  if (tile.t === 'rock') { toast('Nowhere to put your feet down there.', 'warn'); return; }
+  startFade(() => {
+    enterForest(tx, ty);
+    cam.centreOn(G.player.x, VIEW_H / 2, FOREST_BOUNDS);
+    toast('Hold E to chop, pick and forage. F to fly out.', 'info');
+  }, PAL.leaf2);
+}
+
+function leaveForest() {
+  startFade(() => {
+    emptyPack();
+    G.mode = 'sky';
+    G.rider.x = G.forestSite.lx * TILE + TILE / 2;
+    G.rider.y = G.forestSite.ly * TILE + TILE / 2;
+    G.rider.vx = 0; G.rider.vy = 0;
+    cam.centreOn(G.rider.x, G.rider.y, SKY_BOUNDS);
   }, PAL.sky3);
 }
 
@@ -215,6 +267,7 @@ function handleSkyInput() {
     }
   }
   if (pressed('KeyQ')) G.ui.build = null;
+  if (pressed('KeyF')) { consume('KeyF'); landInForest(); return; }
   if (pressed('KeyE', 'Escape')) {
     consume('KeyE', 'Escape');
     if (G.ui.build) G.ui.build = null;
@@ -266,6 +319,36 @@ function handleSkyInput() {
   if (!input.dragging) markMode = null;
 }
 
+function handleLodgeInput() {
+  if (pressed('Escape')) {
+    consume('Escape');
+    startFade(() => {
+      G.mode = 'camp';
+      const home = STATIONS.find((st) => st.id === 'home');
+      G.player.x = home.x + 30;
+      G.player.y = CAMP_GROUND;
+      G.player.vx = 0; G.player.vy = 0;
+      cam.centreOn(G.player.x, VIEW_H / 2, CAMP_BOUNDS);
+    }, PAL.wood2);
+    return;
+  }
+  if (pressed('KeyE')) {
+    consume('KeyE');
+    lodge.decorating = !lodge.decorating;
+    if (!lodge.decorating) lodge.picked = null;
+  }
+  updateDecorating();
+}
+
+function handleForestInput() {
+  if (pressed('KeyF')) { consume('KeyF'); leaveForest(); return; }
+  const target = nearestTarget();
+  if (target && target.kind === 'heron' && pressed('KeyE')) {
+    consume('KeyE');
+    leaveForest();
+  }
+}
+
 function handleCampInput() {
   const station = nearestStation(G.player.x);
   if (station && pressed('KeyE')) {
@@ -274,6 +357,8 @@ function handleCampInput() {
     else if (station.id === 'logpile') {
       if (openMinigame()) { /* opened */ }
       else toast(`The crew needs a breather - ${Math.ceil(mini.cooldown)}s`, 'warn');
+    } else if (station.id === 'home') {
+      startFade(() => enterLodge(), PAL.wood2);
     } else if (station.id === 'jobboard') { openStation('board'); G.ui.tab = 'contracts'; }
     else if (station.id === 'bunkhouse') openStation('crew');
     else if (station.id === 'storehouse') openStation('stores');
@@ -293,9 +378,19 @@ function step(now) {
 }
 
 function update(real) {
-  const overlayNow = helpOpen || mini.active || !!G.station || screenMode === 'title';
+  const overlayNow = helpOpen || mini.active || !!G.station || screenMode === 'title' || cutscene.active;
   updateTouch(G.mode, overlayNow);
   if (screenMode === 'title') { updateTitle(real); return; }
+
+  if (cutscene.active) {
+    updateCutscene(real);
+    if (pressed('KeyE', 'Space', 'Enter', 'Escape') || input.clicked) {
+      consume('KeyE', 'Space', 'Enter', 'Escape');
+      advanceCutscene();
+      if (!cutscene.active && !G.story.seen.helpShown) { G.story.seen.helpShown = true; helpOpen = true; }
+    }
+    return;
+  }
   updateMinigame(real);
   tipTimer += real;
 
@@ -313,7 +408,7 @@ function update(real) {
     return;
   }
 
-  const overlay = helpOpen || mini.active || !!G.station;
+  const overlay = helpOpen || mini.active || !!G.station || cutscene.active;
   const busy = overlay || fade.dur > 0;
 
   if (!overlay && pressed('KeyP')) G.paused = !G.paused;
@@ -328,6 +423,17 @@ function update(real) {
     updateCampPlayer(real, busy);
     cam.follow(G.player.x, VIEW_H / 2, real, CAMP_BOUNDS, 8);
     if (!busy) handleCampInput();
+  } else if (G.mode === 'lodge') {
+    updateWalker(G.player, real, busy || lodge.decorating, LODGE_FLOOR, 26, VIEW_W - 26);
+    cam.x = 0; cam.y = 0;
+    if (!busy) handleLodgeInput();
+  } else if (G.mode === 'forest') {
+    updateWalker(G.player, real, busy, FOREST_GROUND, 14, STRIP_W - 14);
+    const target = nearestTarget();
+    const acting = !busy && held('KeyE') && !!target && target.kind !== 'heron';
+    updateForest(real, acting);
+    cam.follow(G.player.x, VIEW_H / 2, real, FOREST_BOUNDS, 8);
+    if (!busy) handleForestInput();
   } else {
     updateCritters(real);
     updateRider(real, busy);
@@ -345,16 +451,38 @@ function update(real) {
 function render(real) {
   if (drawOrientationHint(ctx)) return;
   if (screenMode === 'title') { renderTitle(real); drawTouchControls(ctx, performance.now() / 1000); return; }
+  if (cutscene.active) { drawCutscene(ctx); return; }
   const t = G.time;
   ctx.imageSmoothingEnabled = false;
 
+  const now = performance.now() / 1000;
   if (G.mode === 'camp') {
-    drawCamp(ctx, performance.now() / 1000);
-    drawPlayer(ctx, G.player, performance.now() / 1000);
+    drawCamp(ctx, now);
+    drawPlayer(ctx, G.player, now);
     const station = nearestStation(G.player.x);
     if (station && !G.station && !mini.active) {
       const sx = cam.sx(station.x);
-      keyPrompt(ctx, sx, CAMP_GROUND - 58, 'E', station.label, performance.now() / 1000);
+      keyPrompt(ctx, sx, CAMP_GROUND - 58, 'E', station.label, now);
+    }
+  } else if (G.mode === 'lodge') {
+    drawLodge(ctx, now, G.player);
+    drawSlotHints(ctx, now);
+    if (!lodge.decorating) {
+      keyPrompt(ctx, Math.round(G.player.x), LODGE_FLOOR - 46, 'E', 'DECORATE', now);
+      drawHint(ctx, 'ESC  BACK TO CAMP', PAL.paper3);
+    }
+  } else if (G.mode === 'forest') {
+    drawForest(ctx, now, G.player);
+    const target = forest.target;
+    if (target) {
+      const px0 = target.kind === 'heron' ? cam.sx(forest.heronX) : cam.sx(target.prop.x);
+      const py0 = target.kind === 'heron' ? FOREST_GROUND - 44 : FOREST_GROUND - 52;
+      keyPrompt(ctx, px0, py0, target.kind === 'heron' ? 'E' : 'E', target.label, now);
+      if (forest.chopT > 0) {
+        const w = 22;
+        rect(ctx, px0 - (w >> 1), py0 - 8, w, 4, PAL.ink);
+        rect(ctx, px0 - (w >> 1), py0 - 8, Math.round(w * Math.min(1, forest.chopT / 0.42)), 4, PAL.gold2);
+      }
     }
   } else {
     drawValley(ctx, t, screen);
@@ -367,12 +495,16 @@ function render(real) {
   // --- HUD
   drawResourceStrip(ctx);
   drawDayChip(ctx);
+  if (G.mode === 'forest') {
+    drawForestHud(ctx, now);
+    drawHint(ctx, touchUI.enabled ? 'FLY OUT TO BANK IT' : 'F  FLY OUT', PAL.paper3);
+  }
   if (G.mode === 'sky' && !G.station && !mini.active && !helpOpen) {
     const picked = drawHotbar(ctx, t);
     if (picked) G.ui.build = G.ui.build === picked ? null : picked;
     drawHint(ctx, G.ui.build
       ? (touchUI.enabled ? 'TAP THE VALLEY TO PLACE' : 'CLICK TO PLACE - E CANCELS')
-      : (touchUI.enabled ? 'TAP A TREE TO FELL IT' : 'E  FLY HOME'), PAL.paper3);
+      : (touchUI.enabled ? 'TAP A TREE - LAND TO GATHER' : 'F  LAND HERE     E  FLY HOME'), PAL.paper3);
   }
   if (G.paused) {
     text(ctx, 'PAUSED', VIEW_W / 2, 30, PAL.gold2, { align: 'center', shadow: PAL.ink });
@@ -460,26 +592,28 @@ function renderTitle(real) {
 // ------------------------------------------------------------------- help
 function drawHelp(ctx) {
   scrim(ctx, VIEW_W, VIEW_H, 0.68);
-  const w = 300, h = 176;
+  const w = 320, h = 196;
   const x = (VIEW_W - w) >> 1, y = (VIEW_H - h) >> 1;
   const box = panel(ctx, x, y, w, h, 'DAM IT');
   const bird = S.birdSprite(1, true);
   ctx.drawImage(bird, box.x + box.w - bird.width - 2, box.y - 2);
 
   const lines = [
-    ['YOU ARE THE VALLEY\'S BEAVER CONTRACTOR.', PAL.paper],
-    ['WILD ANIMALS WANT HOMES. BUILD THEM.', PAL.paper3],
+    ['APPRENTICE BUILDER. ONE AXE. ONE HERON.', PAL.paper],
+    ['HOUSE THE ANIMALS AND B.I.T. MUST LET YOU IN.', PAL.paper3],
     ['', PAL.paper],
     ['IN CAMP', PAL.gold2],
-    ['A / D   WALK      SPACE  JUMP', PAL.paper],
-    ['E       USE WHAT YOU ARE STANDING AT', PAL.paper],
+    ['A / D  WALK    SPACE JUMP    E  USE', PAL.paper],
+    ['LODGE - CREW - JOB BOARD - STORES - PERCH', PAL.paper3],
     ['', PAL.paper],
     ['ON THE HERON', PAL.gold2],
-    ['WASD    FLY       CLICK  MARK / BUILD', PAL.paper],
-    ['1-9     TOOLS     TAB    OTHER TOOLS', PAL.paper],
-    ['RCLICK  CANCEL    E      FLY HOME', PAL.paper],
+    ['WASD   FLY     CLICK MARK / BUILD', PAL.paper],
+    ['1-9    TOOLS   TAB   MORE TOOLS', PAL.paper],
+    ['F      LAND AND GATHER    E  FLY HOME', PAL.paper],
     ['', PAL.paper],
-    ['SHIFT SPEEDS TIME UP.  P PAUSES.  H HELP.', PAL.paper3],
+    ['ON THE FOREST FLOOR', PAL.gold2],
+    ['HOLD E TO CHOP, PICK AND FORAGE.', PAL.paper],
+    ['F FLIES OUT AND BANKS WHAT YOU CARRY.', PAL.paper],
   ];
   lines.forEach((entry, i) => text(ctx, entry[0], box.x, box.y + i * 9, entry[1]));
   if (button(ctx, box.x + (box.w >> 1) - 34, box.y + box.h - 14, 68, 12, 'LET\'S BUILD')) helpOpen = false;
@@ -493,6 +627,19 @@ window.addEventListener('beforeunload', () => saveGame());
 Object.defineProperty(window, '__scale', { get: () => screen.scale });
 Object.defineProperty(window, '__camx', { get: () => Math.round(cam.x) });
 Object.defineProperty(window, '__camy', { get: () => Math.round(cam.y) });
+Object.defineProperty(window, '__nearStation', { get: () => { const st = nearestStation(G.player.x); return st ? st.id : null; } });
+Object.defineProperty(window, '__fade', { get: () => fade.dur });
+Object.defineProperty(window, '__cutscene', { get: () => cutscene.active ? `${cutscene.id}:${cutscene.beat}` : null });
+Object.defineProperty(window, '__help', { get: () => helpOpen });
+Object.defineProperty(window, '__decorating', { get: () => lodge.decorating });
+Object.defineProperty(window, '__picked', { get: () => lodge.picked });
+Object.defineProperty(window, '__cosy', { get: () => cosiness() });
+Object.defineProperty(window, '__forestProps', { get: () => forest.props.length });
+Object.defineProperty(window, '__forestTargetKind', { get: () => forest.target && forest.target.kind });
+Object.defineProperty(window, '__forestNearestTree', { get: () => {
+  const t = forest.props.filter((p) => p.kind === 'tree')[0];
+  return t ? Math.round(t.x) : null;
+} });
 Object.defineProperty(window, '__touchEnabled', { get: () => touchUI.enabled });
 
 Object.defineProperty(window, '__inputSnapshot', { get: () => ({ mx: input.mx, my: input.my, over: input.overCanvas, clicked: input.clicked, touches: input.touches.size, isTouch: input.isTouch }) });

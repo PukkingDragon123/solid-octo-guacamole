@@ -211,50 +211,65 @@ function paintBackdrop() {
 let beaverCache = null;
 
 function paintBeaver() {
-  const w = 74, h = 62;
+  const w = 84, h = 74;
   const surf = surface(w, h);
   const ctx = surf.ctx;
   const dark = '#150e28';
-  const baseY = h - 2;
-  const cx = 30;
+  const baseY = h - 3;
+  const cx = 36;
 
-  // flat paddle tail, trailing away behind
-  ctx.fillStyle = dark;
-  for (let i = 0; i < 22; i++) {
-    const t = i / 21;
-    const halfH = Math.round(5 - Math.abs(t - 0.55) * 4);
-    const y = baseY - 6 + Math.round(t * 6);
-    rect(ctx, cx - 8 - i, y - halfH, 1, halfH * 2, dark);
+  // Same build as the beaver you play: paddle tail, round body, big head with
+  // a muzzle and buck teeth, one round ear, tool belt and a hard hat. Just
+  // three times the size and lit from behind.
+
+  // paddle tail, laid out flat behind
+  for (let i = 0; i < 26; i++) {
+    const t = i / 25;
+    const halfH = Math.round(7 - Math.abs(t - 0.5) * 5);
+    rect(ctx, cx - 12 - i, baseY - 10 + Math.round(t * 7) - halfH, 1, halfH * 2, dark);
   }
 
-  // haunch and body: a fat teardrop leaning forward
-  disc(ctx, cx, baseY - 13, 13, dark);
-  disc(ctx, cx + 6, baseY - 18, 11, dark);
-  rect(ctx, cx - 12, baseY - 14, 26, 13, dark);
-  disc(ctx, cx + 12, baseY - 8, 6, dark);           // hind foot
+  // haunch and body, sitting up
+  disc(ctx, cx + 2, baseY - 17, 15, dark);
+  disc(ctx, cx + 7, baseY - 24, 12, dark);
+  rect(ctx, cx - 11, baseY - 20, 26, 18, dark);
+  disc(ctx, cx + 13, baseY - 9, 7, dark);          // hind foot
+  rect(ctx, cx + 6, baseY - 3, 14, 3, dark);
 
-  // head, tilted up a little toward the dam
-  disc(ctx, cx + 16, baseY - 32, 9, dark);
-  disc(ctx, cx + 23, baseY - 30, 5, dark);          // muzzle
-  disc(ctx, cx + 11, baseY - 40, 3, dark);          // ear
-  px(ctx, cx + 27, baseY - 28, dark);
-  rect(ctx, cx + 24, baseY - 27, 3, 2, dark);       // chin
+  // head: round skull, muzzle out to the right
+  disc(ctx, cx + 16, baseY - 40, 11, dark);
+  disc(ctx, cx + 26, baseY - 36, 7, dark);         // muzzle
+  disc(ctx, cx + 9, baseY - 50, 4, dark);          // ear
+  // buck teeth, the one bright detail on the whole silhouette
+  rect(ctx, cx + 27, baseY - 31, 5, 4, '#f6c05c');
+  rect(ctx, cx + 29, baseY - 31, 1, 4, '#c2624e');
 
-  // front paw resting on the knee
-  disc(ctx, cx + 15, baseY - 18, 4, dark);
+  // front paw resting on the knee, holding nothing for once
+  disc(ctx, cx + 15, baseY - 22, 5, dark);
 
-  // whiskers catch the light later, so put them in now
-  rect(ctx, cx + 28, baseY - 31, 4, 1, dark);
-  rect(ctx, cx + 28, baseY - 28, 5, 1, dark);
+  // tool belt
+  rect(ctx, cx - 9, baseY - 20, 24, 3, dark);
+  rect(ctx, cx + 2, baseY - 18, 4, 5, dark);
+
+  // hard hat: brim then dome, the way the game sprite wears it
+  rect(ctx, cx + 4, baseY - 50, 26, 4, dark);
+  rect(ctx, cx + 9, baseY - 56, 15, 7, dark);
+  disc(ctx, cx + 16, baseY - 55, 7, dark);
 
   rimLight(ctx, w, h, '#fbd97e', 1, -1, '#c2624e');
+
+  // the eye catches the last of the sun
+  px(ctx, cx + 21, baseY - 42, '#fff0b8');
+  px(ctx, cx + 22, baseY - 42, '#f6c05c');
+  // and a hot line along the top of the hat
+  rect(ctx, cx + 10, baseY - 57, 13, 1, '#fff0b8');
   return surf.canvas;
 }
 
 function drawBeaver(ctx, t) {
   if (!beaverCache) beaverCache = paintBeaver();
   const breathe = Math.round(Math.sin(t * 1.3) * 1);
-  ctx.drawImage(beaverCache, 84, 162 + breathe);
+  ctx.drawImage(beaverCache, 74, 154 + breathe);
 
   // a felled log lying beside it on the shelf
   rect(ctx, 22, 218, 28, 7, '#1a1130');

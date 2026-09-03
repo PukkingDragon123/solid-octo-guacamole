@@ -1,9 +1,10 @@
 # DAM IT
 
-A cosy pixel-art building game. You are the valley's beaver contractor: run the
-camp on foot, ride a heron to survey the valley from above, put a crew of
-beavers to work, dam the river until a pond rises behind it, and build every
-wild animal the home it asks for.
+A cosy pixel-art building game. You are an apprentice beaver builder with one
+axe, one heron and an application to the **Beaver Institute of Timberwork**.
+Fell your own timber on the forest floor, put a crew to work, dam the river
+until a pond rises behind it, furnish a lodge worth visiting, and build every
+wild animal in the valley the home it asks for.
 
 Every pixel — terrain, beavers, the heron, the interface, the font — is
 generated procedurally at load time. There are no image files, no build step and
@@ -11,9 +12,13 @@ no dependencies.
 
 ![Title screen: a beaver at sunset on a rock, looking out at its dam](screenshot-title.png)
 
+![The forest floor: chopping a maple by hand, with the heron waiting](screenshot-forest.png)
+
+![Your lodge, furnished: fire, bookshelf, trophy shelf and a window on the pond](screenshot-lodge.png)
+
 ![The camp, seen side-on, with the dam visible across the pond behind it](screenshot-camp.png)
 
-![The valley from the back of the heron: mixed woodland, mushrooms, fallen logs and butterflies](screenshot-sky.png)
+![The valley from the back of the heron: mixed woodland, mushrooms and butterflies](screenshot-sky.png)
 
 ## Play it
 
@@ -41,7 +46,21 @@ round.
 
 ![The camp on a phone, with the walk, jump and use buttons](screenshot-mobile.png)
 
-## Two views
+## Where the wood comes from
+
+You do not get timber by wishing for it. From the air, press <kbd>F</kbd> to put
+the heron down anywhere on land and the view drops to the **forest floor** — a
+side-on slice of that exact patch of valley, with the real trees, bushes and
+undergrowth that are standing there. Hold <kbd>E</kbd> to swing the axe: chips
+fly, the trunk comes down, and what you cut goes into your pack. Pick berries,
+split fallen logs, forage mushrooms. Your pack only holds so much; press
+<kbd>F</kbd> to fly out and everything you carry is banked in the stores.
+
+Chop a tree here and it is gone from the valley — the same tree your crew would
+otherwise have felled. Early on you have one beaver and no logger, so the first
+loads of timber are yours to fetch by paw.
+
+## Three views
 
 **The camp** is a side-scrolling scene you walk around. Everything is a thing you
 stand in front of and press <kbd>E</kbd> on:
@@ -52,6 +71,7 @@ stand in front of and press <kbd>E</kbd> on:
 | Bunkhouse | Your crew: levels, energy, wages, and where you spend skill points |
 | Stores | The ledger — supplies, wage bill, valley report, residents, save |
 | Log pile | **Log Slam**, a timing mini-game that pays out timber and build progress |
+| Your lodge | Your own home. Walk in and furnish it |
 | Perch | The heron. Climb on to take off |
 
 The camp sits on the bank of the valley's own pond, so the dam you are building
@@ -62,6 +82,24 @@ building happens: mark trees, lay dam segments, plant, and site habitats. The
 crew keeps working in the valley whether you are watching or not — and the dam
 you build shows up on the horizon back at camp.
 
+**The forest floor** is where you work with your own paws, described above.
+
+### Your lodge
+
+Press <kbd>E</kbd> at the lodge door and you are inside: a woven dome with a
+fire, a bed and a round window on the pond. Press <kbd>E</kbd> again to open the
+furniture catalogue — rugs, a table, a bookshelf, a potted fern, wall lanterns,
+a painting, a trophy shelf, a diploma frame. Click a piece, click a spot, and it
+goes up; right-click takes it back down for half the materials. Everything you
+add raises your **cosiness**, which the university counts.
+
+### The job board
+
+The board runs the crew as well as the contracts. **Work orders** let you turn
+each kind of job off, leave it normal, or pin it as priority — switch felling
+off and the crew leaves the trees to you while they build. The **B.I.T.** tab is
+your application: six things to prove, checked live against the valley.
+
 ## Controls
 
 | | |
@@ -70,38 +108,55 @@ you build shows up on the horizon back at camp.
 | <kbd>W</kbd> <kbd>S</kbd> | Fly up and down |
 | <kbd>Space</kbd> | Jump · slam the log |
 | <kbd>E</kbd> | Use the station you are at · fly home · close a screen |
+| <kbd>E</kbd> (held) | Chop, pick and forage on the forest floor |
+| <kbd>F</kbd> | Land where the heron is hovering · fly back out again |
 | Left click | Mark a tree · place a blueprint. Drag to do a whole row |
 | Right click | Cancel · demolish · pull out a dam segment |
 | <kbd>1</kbd>–<kbd>9</kbd> | Pick a tool · <kbd>Tab</kbd> swaps groundwork and habitats |
 | <kbd>Shift</kbd> | Run time faster · <kbd>P</kbd> pause · <kbd>H</kbd> help |
 
+## The story
+
+You are applying to the Beaver Institute of Timberwork, and they do not take
+applications on paper. The entrance portfolio is six things: haul forty timber
+by your own paw, keep three beavers in work, raise the water two levels, house
+three animals, keep a lodge worth visiting, and finally house eight. Finish it
+and you are a master builder.
+
+There are three cutscenes — an opening, the letter the heron drops on the board,
+and the day the Institute answers — each one a painted pixel scene with
+narration, drawn by the same toolkit as everything else.
+
 ## The loop
 
-1. **Hire a crew** at the job board. Five jobs, each fast at one thing: Logger
+1. **Fell your own timber** on the forest floor, at least until you can afford
+   a logger.
+
+2. **Hire a crew** at the job board. Five jobs, each fast at one thing: Logger
    (felling), Hauler (carries double, walks faster), Engineer (dams and
    habitats), Gardener (planting, and plants grow faster nearby), Forager
    (berries and stray seeds). They earn XP, level up and bank skill points for
    Swift Paws, Big Pockets, Craft and Endurance — and they are all paid in
    **berries at dawn**. Miss payday and morale falls until they walk out.
 
-2. **Gather wood.** From the air, click a grown tree to mark it for felling, or
-   drag across a stand. Beavers chop, haul a load back to the lodge and return
+3. **Mark trees for the crew.** From the air, click a grown tree to mark it for
+   felling, or drag across a stand. Beavers chop, haul a load back to the lodge and return
    for the rest. **The forest is finite** — every tree you fell is gone unless
    you plant saplings, so replant as you go. Beavers swim, so open water slows a
    crossing but never blocks it; only bare rock does.
 
-3. **Dam the river.** Drop dam segments on the channel — drag along a row to lay
+4. **Dam the river.** Drop dam segments on the channel — drag along a row to lay
    several. The water only rises when *every* channel tile across the river is
    sealed, and each generated river has a narrows or two where that is cheap.
    Then the level climbs a step at a time and floods the low ground behind it.
    Ground the next rise would swallow is hatched blue, so you can see the future
    shoreline before you plant an orchard in it.
 
-4. **Plant what they ask for.** Sunberries, dewberries and goldberries feed the
+5. **Plant what they ask for.** Sunberries, dewberries and goldberries feed the
    crew and the animals; clover, bluebells and sunflowers are what the pickier
    neighbours want. Reed beds only take in still pond water, so dam first.
 
-5. **Build the habitat.** Each animal picks a spot and shows a ring on the map.
+6. **Build the habitat.** Each animal picks a spot and shows a ring on the map.
    Everything on its wish-list has to sit inside that ring. Tick every box and
    your new neighbour moves in with hearts, berries and seeds. There are eleven
    to house — duck, frog, rabbit, hedgehog, dragonfly, squirrel, songbird,
@@ -154,7 +209,8 @@ js/beavers.js       hiring, skills, wages, each beaver's state machine
 js/plants.js        growth and ripening
 js/build.js         placement rules, build sites, demolition
 js/animals.js       contracts, need checking, residents
-js/player.js        walking in camp, flying on the heron
+js/player.js        walking in camp and woods, flying on the heron
+js/story.js         the B.I.T. application and what triggers each scene
 js/critters.js      butterflies, fireflies, fish and passing flocks
 js/input.js         keyboard, mouse and touch, in view-space coordinates
 js/minigame.js      Log Slam
@@ -162,6 +218,9 @@ js/gfx/pixel.js     the pixel toolkit and the bitmap font
 js/gfx/sprites.js   every sprite, generated
 js/gfx/screen.js    the scaled canvas and the camera
 js/scenes/title.js  the sunset title screen
+js/scenes/cutscene.js  painted story beats and their narration
+js/scenes/forest.js the forest floor you land in and gather from
+js/scenes/lodge.js  your lodge interior and the furniture in it
 js/scenes/camp.js   the side-scrolling camp
 js/scenes/valley.js the bird's-eye valley
 js/ui/widgets.js    immediate-mode pixel widgets

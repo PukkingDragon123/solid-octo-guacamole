@@ -34,7 +34,13 @@ export const G = {
   animalPool: [],       // ids not yet offered
 
   // where the player is and what they are doing
-  mode: 'camp',                 // 'camp' (side view) or 'sky' (bird's eye)
+  mode: 'camp',                 // 'camp' | 'sky' | 'forest'
+  pack: { wood: 0, berries: 0, seeds: 0 },   // what you are carrying by hand
+  packCap: 26,
+  forestSite: { lx: 0, ly: 0 },              // where the heron set you down
+  decor: {},                                 // slot index -> furniture id
+  story: { seen: {}, done: {}, accepted: false },
+  orders: { CHOP: 1, BUILD: 1, PLANT: 1, HARVEST: 1 },   // 0 off, 1 normal, 2 priority
   player: { x: 352, y: CAMP_GROUND, vx: 0, vy: 0, onGround: true, face: 1 },
   rider: { x: 0, y: 0, vx: 0, vy: 0, face: 1, height: 23, bob: 0, flying: false },
   station: null,                // the screen open at a camp station, if any
@@ -51,7 +57,7 @@ export const G = {
   minigame: { active: false, cooldown: 0 },
   toasts: [],
   log: [],
-  stats: { felled: 0, planted: 0, built: 0, harvested: 0, paid: 0, missedPay: 0 },
+  stats: { felled: 0, planted: 0, built: 0, harvested: 0, paid: 0, missedPay: 0, gathered: 0 },
   gameOverShown: false,
 };
 
@@ -127,7 +133,7 @@ const SAVED_KEYS = [
   'seed', 'tiles', 'entities', 'beavers', 'jobs', 'nextId', 'resources', 'caps',
   'time', 'day', 'dayT', 'waterLevel', 'riverBlocked', 'riseTimer', 'lodge',
   'crewCap', 'requests', 'housed', 'animalPool', 'stats', 'won', 'clutter',
-  'mode', 'player', 'rider',
+  'mode', 'player', 'rider', 'pack', 'packCap', 'forestSite', 'decor', 'story', 'orders',
 ];
 
 export function saveGame() {

@@ -9,6 +9,8 @@ import { panel, note, button, bar, pips, scrim, scrollbar, hovering } from './wi
 import { input, pressed } from '../input.js';
 import { hire, hireCost, fire, spendSkillPoint, salaryOf, xpForNext, maxEnergy } from '../beavers.js';
 import { animalDef, needStatus } from '../animals.js';
+import { GOALS, goalDone, goalsDone, applicationComplete, UNIVERSITY } from '../story.js';
+import { cosiness } from '../scenes/lodge.js';
 
 const scrolls = { board: 0, crew: 0, stores: 0 };
 let confirmFire = null;
@@ -58,7 +60,7 @@ export function drawStation(ctx, t, dt) {
 
 // ------------------------------------------------------------ job board
 function drawBoard(ctx, box, t) {
-  const tabs = [['contracts', 'CONTRACTS'], ['hire', 'HIRE A BEAVER']];
+  const tabs = [['contracts', 'CONTRACTS'], ['hire', 'HIRE'], ['orders', 'WORK ORDERS'], ['bit', 'B.I.T.']];
   let tx = box.x;
   for (const [id, label] of tabs) {
     const tw = textWidth(label) + 12;
@@ -69,6 +71,8 @@ function drawBoard(ctx, box, t) {
   const listH = box.h - 34;
 
   if (G.ui.tab === 'hire') { drawHire(ctx, box, listY, listH); return; }
+  if (G.ui.tab === 'orders') { drawOrders(ctx, box, listY, listH); return; }
+  if (G.ui.tab === 'bit') { drawApplication(ctx, box, listY, listH); return; }
 
   if (!G.requests.length) {
     note(ctx, box.x, listY, box.w, 40);
@@ -152,6 +156,83 @@ function drawHire(ctx, box, listY, listH) {
   const wages = G.beavers.reduce((sum, b) => sum + salaryOf(b), 0);
   text(ctx, `CREW ${G.beavers.length}/${G.crewCap}   WAGES ${wages} BERRIES AT DAWN`,
        box.x, box.y + box.h - 12, G.beavers.length >= G.crewCap ? PAL.gold2 : PAL.paper3);
+}
+
+const ORDER_ROWS = [
+  ['CHOP', 'FELL MARKED TREES', 'Beavers cut down whatever you have marked from the air.'],
+  ['BUILD', 'BUILD AND DAM', 'Sites you have placed, including every dam segment.'],
+  ['PLANT', 'PLANT SEEDLINGS', 'Saplings, bushes, flowers and reeds waiting to go in.'],
+  ['HARVEST', 'PICK BERRIES', 'Ripe bushes. Berries pay the wages, so think twice.'],
+];
+const ORDER_LABEL = ['OFF', 'NORMAL', 'PRIORITY'];
+
+/** What the crew is allowed to pick up, and what comes first. */
+function drawOrders(ctx, box, listY, listH) {
+  note(ctx, box.x, listY, box.w, listH - 2);
+  text(ctx, 'ORDERS FOR THE CREW', box.x + 6, listY + 6, PAL.ink);
+  text(ctx, 'CLICK TO CHANGE. WORK YOU TURN OFF IS LEFT FOR YOUR OWN PAWS.',
+       box.x + 6, listY + 17, PAL.paper3);
+
+  ORDER_ROWS.forEach(([key, title, note2], i) => {
+    const y = listY + 32 + i * 30;
+    const level = (G.orders && G.orders[key]) ?? 1;
+    rect(ctx, box.x + 4, y, box.w - 8, 26, level === 0 ? '#ddc8a4' : '#e8dbb8');
+    const icon = S.icon(key === 'CHOP' ? 'axe' : key === 'BUILD' ? 'hammer' : key === 'PLANT' ? 'seed' : 'berry');
+    ctx.drawImage(icon, box.x + 8, y + 4);
+    text(ctx, title, box.x + 22, y + 4, level === 0 ? PAL.paper3 : PAL.ink);
+    text(ctx, note2, box.x + 22, y + 15, PAL.paper3);
+    const bw = 76;
+    const colour = level === 0 ? PAL.stone1 : level === 2 ? PAL.gold : PAL.wood2;
+    if (button(ctx, box.x + box.w - bw - 6, y + 7, bw, 13, ORDER_LABEL[level], { active: level === 2 })) {
+      G.orders[key] = (level + 1) % 3;
+    }
+    rect(ctx, box.x + box.w - bw - 10, y + 7, 2, 13, colour);
+  });
+
+  const jobs = G.jobs.length;
+  text(ctx, `${jobs} JOB${jobs === 1 ? '' : 'S'} ON THE BOARD - ${G.beavers.length} BEAVER${G.beavers.length === 1 ? '' : 'S'} TO DO THEM`,
+       box.x + 6, listY + listH - 14, PAL.paper3);
+}
+
+/** The application pinned to the corner of the board. */
+function drawApplication(ctx, box, listY, listH) {
+  note(ctx, box.x, listY, box.w, listH - 2);
+  const done = goalsDone();
+  const accepted = applicationComplete();
+
+  // the crest, drawn small
+  const cx = box.x + 24, cy = listY + 20;
+  rect(ctx, cx - 9, cy - 11, 18, 18, PAL.wood2);
+  rect(ctx, cx - 9, cy - 11, 18, 1, PAL.wood0);
+  for (let i = 0; i < 6; i++) px(ctx, cx - 8 + i * 3, cy + 7, PAL.wood2);
+  rect(ctx, cx - 6, cy - 3, 12, 3, PAL.wood3);
+  text(ctx, 'BIT', cx, cy + 1, PAL.gold2, { align: 'center' });
+
+  text(ctx, UNIVERSITY, box.x + 40, listY + 8, PAL.ink);
+  text(ctx, accepted ? 'APPLICATION ACCEPTED' : `ENTRANCE PORTFOLIO  ${done}/${GOALS.length}`,
+       box.x + 40, listY + 20, accepted ? PAL.grass1 : PAL.paper3);
+
+  GOALS.forEach((goal, i) => {
+    const y = listY + 40 + i * 22;
+    const [have, want] = goal.progress();
+    const ok = goalDone(goal);
+    rect(ctx, box.x + 4, y - 2, box.w - 8, 20, ok ? '#cfe6c0' : '#e6d5b0');
+    text(ctx, ok ? '*' : '-', box.x + 8, y + 1, ok ? PAL.grass1 : PAL.paper3);
+    text(ctx, goal.title, box.x + 18, y + 1, PAL.ink);
+    text(ctx, goal.note, box.x + 18, y + 10, PAL.paper3);
+    bar(ctx, box.x + box.w - 76, y + 2, 50, 6, have / want, ok ? PAL.grass2 : PAL.gold);
+    text(ctx, `${have}/${want}`, box.x + box.w - 22, y + 2, PAL.ink, { align: 'right' });
+  });
+
+  if (accepted) {
+    // a stamp across the whole thing
+    const sx = box.x + box.w - 96, sy = listY + listH - 44;
+    rect(ctx, sx, sy, 88, 30, 'rgba(201,59,50,0.18)');
+    for (let i = 0; i < 88; i += 2) { px(ctx, sx + i, sy, PAL.red); px(ctx, sx + i, sy + 29, PAL.red); }
+    for (let i = 0; i < 30; i += 2) { px(ctx, sx, sy + i, PAL.red); px(ctx, sx + 87, sy + i, PAL.red); }
+    text(ctx, 'ACCEPTED', sx + 44, sy + 7, PAL.red, { align: 'center' });
+    text(ctx, 'MASTER BUILDER', sx + 44, sy + 18, PAL.red, { align: 'center' });
+  }
 }
 
 // ---------------------------------------------------------------- crew

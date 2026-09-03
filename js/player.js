@@ -11,7 +11,11 @@ const FRICTION = 900;
 const JUMP_V = -168;
 
 export function updateCampPlayer(dt, locked) {
-  const p = G.player;
+  updateWalker(G.player, dt, locked, CAMP_GROUND, 14, CAMP_W - 14);
+}
+
+/** Shared side-on movement: camp paths and forest floor use the same legs. */
+export function updateWalker(p, dt, locked, groundY, minX, maxX) {
   const left = !locked && held('ArrowLeft', 'KeyA');
   const right = !locked && held('ArrowRight', 'KeyD');
 
@@ -32,8 +36,8 @@ export function updateCampPlayer(dt, locked) {
   p.x += p.vx * dt;
   p.y += p.vy * dt;
 
-  if (p.y >= CAMP_GROUND) { p.y = CAMP_GROUND; p.vy = 0; p.onGround = true; }
-  p.x = Math.max(14, Math.min(CAMP_W - 14, p.x));
+  if (p.y >= groundY) { p.y = groundY; p.vy = 0; p.onGround = true; }
+  p.x = Math.max(minX, Math.min(maxX, p.x));
 }
 
 const FLY_ACCEL = 460;

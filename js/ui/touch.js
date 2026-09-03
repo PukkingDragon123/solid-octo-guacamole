@@ -26,6 +26,23 @@ function layout(mode, overlayOpen) {
     // only a close button while a panel is up; the panel itself is tappable
     return [{ id: 'close', key: 'KeyE', x: VIEW_W - R - 8, y: R + 22, glyph: 'x' }];
   }
+  if (mode === 'lodge') {
+    return [
+      { id: 'left', key: 'ArrowLeft', x: R + 10, y: bottom, glyph: 'left' },
+      { id: 'right', key: 'ArrowRight', x: R * 3 + 18, y: bottom, glyph: 'right' },
+      { id: 'leave', key: 'Escape', x: VIEW_W - R * 3 - 18, y: bottom, glyph: 'close' },
+      { id: 'use', key: 'KeyE', x: VIEW_W - R - 10, y: bottom - R - 6, glyph: 'use', big: true },
+    ];
+  }
+  if (mode === 'forest') {
+    return [
+      { id: 'left', key: 'ArrowLeft', x: R + 10, y: bottom, glyph: 'left' },
+      { id: 'right', key: 'ArrowRight', x: R * 3 + 18, y: bottom, glyph: 'right' },
+      { id: 'jump', key: 'Space', x: VIEW_W - R * 5 - 26, y: bottom, glyph: 'jump' },
+      { id: 'fly', key: 'KeyF', x: VIEW_W - R * 3 - 18, y: bottom - R - 6, glyph: 'land' },
+      { id: 'gather', key: 'KeyE', x: VIEW_W - R - 10, y: bottom, glyph: 'chop', big: true },
+    ];
+  }
   if (mode === 'camp') {
     return [
       { id: 'left', key: 'ArrowLeft', x: R + 10, y: bottom, glyph: 'left' },
@@ -40,6 +57,7 @@ function layout(mode, overlayOpen) {
     { id: 'up', key: 'ArrowUp', x: R * 2 + 12, y: bottom - R * 2 - 12, glyph: 'up' },
     { id: 'down', key: 'ArrowDown', x: R * 2 + 12, y: bottom + 2, glyph: 'down' },
     { id: 'tools', key: 'Tab', x: VIEW_W - R * 3 - 16, y: bottom - R - 4, glyph: 'tools' },
+    { id: 'setdown', key: 'KeyF', x: VIEW_W - R - 8, y: bottom + 2, glyph: 'down2' },
     { id: 'land', key: 'KeyE', x: VIEW_W - R - 8, y: bottom - R * 2 - 10, glyph: 'land', big: true },
   ];
 }
@@ -68,7 +86,8 @@ export function updateTouch(mode, overlayOpen) {
 
   for (const b of buttons) {
     const down = held.has(b.id);
-    if (b.id === 'use' || b.id === 'land' || b.id === 'close' || b.id === 'tools') {
+    if (b.id === 'use' || b.id === 'land' || b.id === 'close' || b.id === 'tools'
+        || b.id === 'fly' || b.id === 'setdown' || b.id === 'leave') {
       // one-shot buttons fire on the press, not for as long as they are held
       if (down && !wasHeld.has(b.id)) setVirtualKey(b.key, true);
       else setVirtualKey(b.key, false);
@@ -99,6 +118,20 @@ function glyph(ctx, kind, x, y, colour) {
     // a little hammer
     line(ctx, x - 3, y + 4, x + 1, y - 1, colour);
     rect(ctx, x - 1, y - 5, 6, 3, colour);
+  } else if (kind === 'chop') {
+    // an axe
+    line(ctx, x - 4, y + 5, x + 1, y - 2, colour);
+    rect(ctx, x, y - 6, 5, 4, colour);
+    px(ctx, x + 5, y - 5, colour);
+  } else if (kind === 'down2') {
+    // a bird settling onto a line
+    rect(ctx, x - 1, y - 4, 3, 3, colour);
+    for (let i = 1; i <= 3; i++) {
+      px(ctx, x - 1 - i, y - 4 + Math.round(i * 0.5), colour);
+      px(ctx, x + 1 + i, y - 4 + Math.round(i * 0.5), colour);
+    }
+    rect(ctx, x - 5, y + 4, 11, 1, colour);
+    for (let i = 0; i < 3; i++) px(ctx, x, y + 1 + i, colour);
   } else if (kind === 'land') {
     // a bird coming in to land
     rect(ctx, x - 1, y - 1, 3, 3, colour);

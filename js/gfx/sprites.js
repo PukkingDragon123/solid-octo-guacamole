@@ -294,6 +294,166 @@ export function treeSprite(variant, stage, sway = 1) {
   });
 }
 
+// ------------------------------------------------------- forest floor art
+// Close-up versions of the woodland, for the side-on scene you land in. A
+// player beaver is 18px tall, so these tower over you the way trees should.
+
+export function forestTree(variant, sway = 1, felled = 0) {
+  const spec = SPECIES[variant % SPECIES.length];
+  const w = 76, h = 104;
+  return sprite(`ftree${spec.id}w${sway}`, w, h, (ctx) => {
+    const rng = rngFrom(hashString(`big${spec.id}`));
+    const [d0, d1, d2, d3] = spec.leaves;
+    const cx = w >> 1;
+    const baseY = h - 2;
+    const lean = (sway - 1) * 2;
+    const trunkH = 48;
+    const trunkW = 11;
+
+    // root flare
+    for (const dir of [-1, 1]) {
+      for (let i = 1; i <= 9; i++) {
+        const drop = Math.round((i / 9) * 5);
+        rect(ctx, cx + dir * (5 + i), baseY - 6 + drop, 1, 6 - drop, spec.bark[1]);
+        px(ctx, cx + dir * (5 + i), baseY - 6 + drop, spec.bark[2]);
+      }
+    }
+    // trunk with bark
+    rect(ctx, cx - (trunkW >> 1), baseY - trunkH, trunkW, trunkH, spec.bark[1]);
+    rect(ctx, cx - (trunkW >> 1), baseY - trunkH, 2, trunkH, spec.bark[2]);
+    rect(ctx, cx + (trunkW >> 1) - 1, baseY - trunkH, 1, trunkH, spec.bark[0]);
+    for (let i = 0; i < 26; i++) {
+      const bx = cx - (trunkW >> 1) + 2 + ((rng() * (trunkW - 3)) | 0);
+      const by = baseY - trunkH + 2 + ((rng() * (trunkH - 4)) | 0);
+      rect(ctx, bx, by, 1, 1 + ((rng() * 3) | 0), spec.bark[0]);
+    }
+    if (spec.id === 'birch') {
+      for (let i = 4; i < trunkH; i += 7) {
+        rect(ctx, cx - 4, baseY - i, 3 + ((rng() * 3) | 0), 2, PAL.ink);
+        if (rng() < 0.5) rect(ctx, cx + 1, baseY - i - 3, 3, 1, PAL.ink);
+      }
+    }
+
+    const topY = baseY - trunkH;
+    // branches reaching into the canopy
+    const limbs = [[-1, -26, -6], [1, -30, 4], [-1, -34, -2], [1, -20, 8]];
+    for (const [dir, dy, dx2] of limbs) {
+      const x1 = cx + dir * 16 + dx2 + lean;
+      const y1 = topY + dy + 10;
+      line(ctx, cx, topY + 6 + (dy + 34) * 0.2, x1, y1, spec.bark[0]);
+      line(ctx, cx + dir, topY + 5 + (dy + 34) * 0.2, x1 + dir, y1, spec.bark[1]);
+    }
+
+    if (spec.id === 'pine') {
+      for (let i = 0; i < 6; i++) {
+        const y = topY + 8 - i * 9;
+        const half = Math.round(30 - i * 4);
+        const drift = Math.round(lean * (i / 5));
+        for (let k = 0; k <= half; k++) {
+          const hh = Math.round((1 - k / (half + 1)) * 9) + 2;
+          rect(ctx, cx + drift - k, y - hh, 1, hh + 3, k > half - 4 ? d0 : d1);
+          rect(ctx, cx + drift + k, y - hh, 1, hh + 3, k > half - 4 ? d0 : d1);
+        }
+        rect(ctx, cx + drift - half + 3, y - 2, half * 2 - 5, 3, d1);
+        rect(ctx, cx + drift - Math.round(half * 0.6), y - 6, Math.round(half * 0.9), 3, d2);
+      }
+    } else {
+      const clumps = [
+        [0, -14, 20], [-19, -6, 15], [19, -6, 15], [-11, -26, 14], [12, -26, 14], [0, -34, 12],
+      ];
+      for (const [dx, dy, r] of clumps) disc(ctx, cx + dx + lean, topY + dy, r, d0);
+      for (const [dx, dy, r] of clumps) disc(ctx, cx + dx + lean, topY + dy - 2, r - 2, d1);
+      for (const [dx, dy, r] of clumps) disc(ctx, cx + dx + lean - 2, topY + dy - 4, r - 5, d2);
+      disc(ctx, cx - 12 + lean, topY - 30, 7, d3);
+      // leaf texture and a broken edge
+      for (let i = 0; i < 90; i++) {
+        const a = rng() * Math.PI * 2;
+        const rr = 20 + rng() * 16;
+        px(ctx, Math.round(cx + lean + Math.cos(a) * rr), Math.round(topY - 14 + Math.sin(a) * rr * 0.75),
+           rng() < 0.4 ? d3 : d2);
+      }
+      for (let i = 0; i < 40; i++) {
+        const a = rng() * Math.PI * 2;
+        const rr = 34 + rng() * 5;
+        px(ctx, Math.round(cx + lean + Math.cos(a) * rr), Math.round(topY - 14 + Math.sin(a) * rr * 0.72), d1);
+      }
+      if (spec.id === 'willow') {
+        for (let i = -26; i <= 26; i += 3) {
+          const len = 18 + ((rng() * 14) | 0);
+          for (let k = 0; k < len; k++) {
+            px(ctx, cx + lean + i + Math.round((k / len) * lean), topY + 2 + k, k > len - 4 ? d3 : (k % 4 ? d1 : d0));
+          }
+        }
+      }
+    }
+    outline(ctx, w, h, PAL.ink);
+    shadowUnder(ctx, cx, baseY, 20, 4, 0.28);
+  });
+}
+
+export function forestBush(id, ripe) {
+  return sprite(`fbush${id}${ripe ? 'R' : 'G'}`, 40, 32, (ctx) => {
+    const rng = rngFrom(hashString(`fb${id}`));
+    disc(ctx, 12, 22, 10, PAL.leaf1);
+    disc(ctx, 27, 22, 10, PAL.leaf1);
+    disc(ctx, 20, 14, 11, PAL.leaf1);
+    disc(ctx, 12, 20, 8, PAL.leaf2);
+    disc(ctx, 27, 20, 8, PAL.leaf2);
+    disc(ctx, 19, 12, 9, PAL.leaf2);
+    for (let i = 0; i < 40; i++) {
+      px(ctx, 3 + ((rng() * 34) | 0), 3 + ((rng() * 24) | 0), rng() < 0.4 ? PAL.leaf3 : PAL.leaf2);
+    }
+    if (ripe) {
+      const [dark, light] = BERRY_COLORS[id] || BERRY_COLORS.sunberry;
+      for (let i = 0; i < 11; i++) {
+        const bx = 5 + ((rng() * 30) | 0), by = 6 + ((rng() * 20) | 0);
+        disc(ctx, bx, by, 2, dark);
+        px(ctx, bx - 1, by - 1, light);
+      }
+    }
+    // a few stems at the base
+    for (let i = 0; i < 4; i++) rect(ctx, 14 + i * 4, 26, 1, 5, PAL.wood1);
+    outline(ctx, 40, 32, PAL.ink);
+    shadowUnder(ctx, 20, 30, 13, 3, 0.24);
+  });
+}
+
+export function forestStump(variant) {
+  return sprite(`fstump${variant}`, 30, 24, (ctx) => {
+    const rng = rngFrom(700 + variant);
+    rect(ctx, 6, 8, 18, 14, PAL.wood1);
+    rect(ctx, 6, 8, 3, 14, PAL.wood2);
+    rect(ctx, 5, 6, 20, 4, PAL.wood3);
+    rect(ctx, 7, 5, 16, 3, PAL.wood4);
+    // rings
+    for (let r = 6; r > 1; r -= 2) {
+      for (let a = 0; a < 6.3; a += 0.25) {
+        px(ctx, Math.round(15 + Math.cos(a) * r), Math.round(7 + Math.sin(a) * r * 0.45), PAL.wood2);
+      }
+    }
+    for (let i = 0; i < 5; i++) px(ctx, 8 + ((rng() * 14) | 0), 20 + ((rng() * 2) | 0), PAL.wood0);
+    px(ctx, 9, 4, PAL.grass2); px(ctx, 10, 4, PAL.grass3);
+    outline(ctx, 30, 24, PAL.ink);
+    shadowUnder(ctx, 15, 22, 11, 3, 0.24);
+  });
+}
+
+/** A felled log lying on the forest floor, waiting to be carried off. */
+export function forestLog() {
+  return sprite('flog', 54, 20, (ctx) => {
+    rect(ctx, 3, 6, 48, 11, PAL.wood1);
+    rect(ctx, 3, 6, 48, 3, PAL.wood2);
+    rect(ctx, 3, 15, 48, 2, PAL.wood0);
+    for (let i = 8; i < 50; i += 9) rect(ctx, i, 9, 1, 6, PAL.wood0);
+    disc(ctx, 4, 11, 5, PAL.wood3);
+    disc(ctx, 4, 11, 3, PAL.wood4);
+    px(ctx, 3, 11, PAL.wood2);
+    px(ctx, 20, 5, PAL.grass2); px(ctx, 21, 5, PAL.grass3); px(ctx, 34, 5, PAL.grass2);
+    outline(ctx, 54, 20, PAL.ink);
+    shadowUnder(ctx, 27, 18, 24, 3, 0.24);
+  });
+}
+
 // -------------------------------------------------------------- undergrowth
 // Scattered detail that makes the forest floor look lived in. None of it is
 // interactive; it is there to be looked at.
@@ -971,6 +1131,126 @@ export function siteSprite(pass) {
   });
 }
 
+// ------------------------------------------------------- lodge furnishings
+const DECOR_ART = {
+  rug: (ctx) => {
+    for (let i = 0; i < 4; i++) {
+      const w = 30 - i * 5, y = 2 + i;
+      rect(ctx, (32 - w) >> 1, y, w, 1, [PAL.red, PAL.gold, PAL.red2, PAL.paper2][i]);
+    }
+    rect(ctx, 1, 6, 30, 2, PAL.red);
+    rect(ctx, 3, 8, 26, 1, PAL.red2);
+    for (let x = 2; x < 30; x += 3) px(ctx, x, 9, PAL.paper2);
+  },
+  stool: (ctx) => {
+    rect(ctx, 1, 4, 12, 3, PAL.wood3);
+    rect(ctx, 1, 4, 12, 1, PAL.wood4);
+    rect(ctx, 2, 7, 2, 7, PAL.wood2);
+    rect(ctx, 10, 7, 2, 7, PAL.wood2);
+    rect(ctx, 3, 10, 8, 1, PAL.wood1);
+  },
+  table: (ctx) => {
+    rect(ctx, 0, 3, 26, 3, PAL.wood3);
+    rect(ctx, 0, 3, 26, 1, PAL.wood4);
+    rect(ctx, 2, 6, 3, 11, PAL.wood2);
+    rect(ctx, 21, 6, 3, 11, PAL.wood2);
+    rect(ctx, 4, 10, 18, 1, PAL.wood1);
+    // a bowl of berries on top
+    disc(ctx, 13, 2, 3, PAL.paper2);
+    px(ctx, 12, 0, PAL.red); px(ctx, 14, 0, PAL.blue); px(ctx, 13, 0, PAL.red2);
+  },
+  bookshelf: (ctx) => {
+    rect(ctx, 0, 0, 24, 32, PAL.wood1);
+    rect(ctx, 1, 1, 22, 30, PAL.wood2);
+    for (let s = 0; s < 3; s++) {
+      const y = 3 + s * 10;
+      rect(ctx, 2, y + 8, 20, 2, PAL.wood1);
+      let x = 3;
+      while (x < 20) {
+        const w = 2 + ((x + s) % 3);
+        const h = 5 + ((x * 3 + s) % 3);
+        rect(ctx, x, y + 8 - h, w, h, [PAL.red, PAL.blue2, PAL.grass2, PAL.gold, PAL.purple2][(x + s) % 5]);
+        px(ctx, x, y + 8 - h, PAL.paper2);
+        x += w + 1;
+      }
+    }
+    outline(ctx, 24, 32, PAL.wood0);
+  },
+  lantern: (ctx) => {
+    rect(ctx, 4, 0, 2, 4, PAL.stone1);
+    rect(ctx, 1, 4, 9, 10, PAL.stone2);
+    rect(ctx, 2, 5, 7, 8, PAL.gold2);
+    rect(ctx, 3, 7, 5, 4, PAL.white);
+    rect(ctx, 1, 14, 9, 2, PAL.stone1);
+    px(ctx, 0, 8, PAL.stone3); px(ctx, 10, 8, PAL.stone3);
+  },
+  painting: (ctx) => {
+    rect(ctx, 0, 0, 24, 18, PAL.wood3);
+    rect(ctx, 2, 2, 20, 14, PAL.sky2);
+    rect(ctx, 2, 11, 20, 5, PAL.water2);
+    for (let i = 0; i < 4; i++) rect(ctx, 3 + i * 5, 8, 4, 3, PAL.wood1);
+    disc(ctx, 17, 6, 2, PAL.gold2);
+    rect(ctx, 2, 2, 20, 1, PAL.sky4);
+    outline(ctx, 24, 18, PAL.wood0);
+  },
+  fernpot: (ctx) => {
+    rect(ctx, 4, 13, 10, 7, PAL.dirt2);
+    rect(ctx, 3, 12, 12, 3, PAL.red2);
+    rect(ctx, 3, 12, 12, 1, PAL.red);
+    for (const [fx, len, dir] of [[6, 9, -1], [9, 12, 0], [12, 9, 1]]) {
+      for (let i = 0; i < len; i++) {
+        const x = fx + Math.round(dir * i * 0.4);
+        px(ctx, x, 12 - i, i > len - 3 ? PAL.grass3 : PAL.leaf2);
+        if (i % 2 === 0 && i > 1) { px(ctx, x - 1, 12 - i, PAL.leaf1); px(ctx, x + 1, 12 - i, PAL.leaf1); }
+      }
+    }
+  },
+  vase: (ctx) => {
+    rect(ctx, 4, 9, 7, 8, PAL.water2);
+    rect(ctx, 4, 9, 7, 2, PAL.water3);
+    rect(ctx, 5, 7, 5, 2, PAL.water1);
+    for (const [fx, c] of [[5, PAL.pink], [7, PAL.gold2], [9, PAL.purple2]]) {
+      rect(ctx, fx, 3, 1, 5, PAL.grass2);
+      disc(ctx, fx, 2, 1, c);
+      px(ctx, fx, 1, PAL.white);
+    }
+  },
+  trophy: (ctx) => {
+    rect(ctx, 0, 12, 32, 3, PAL.wood2);
+    rect(ctx, 0, 12, 32, 1, PAL.wood3);
+    rect(ctx, 2, 15, 2, 3, PAL.wood1);
+    rect(ctx, 28, 15, 2, 3, PAL.wood1);
+    // little carved figures on the shelf
+    for (let i = 0; i < 4; i++) {
+      const x = 4 + i * 8;
+      disc(ctx, x + 2, 8, 3, [PAL.paper2, PAL.grass3, PAL.wood3, PAL.blue2][i]);
+      disc(ctx, x + 2, 5, 2, [PAL.paper, PAL.grass4, PAL.wood4, PAL.water3][i]);
+      px(ctx, x + 1, 5, PAL.ink); px(ctx, x + 3, 5, PAL.ink);
+    }
+    outline(ctx, 32, 18, PAL.wood0);
+  },
+  diploma: (ctx) => {
+    rect(ctx, 0, 0, 22, 17, PAL.wood3);
+    rect(ctx, 2, 2, 18, 13, PAL.paper);
+    rect(ctx, 4, 4, 14, 1, PAL.ink);
+    for (let i = 0; i < 4; i++) rect(ctx, 4, 7 + i * 2, 12 - (i % 2) * 3, 1, PAL.paper3);
+    disc(ctx, 16, 12, 2, PAL.red);
+    px(ctx, 16, 12, PAL.gold2);
+    outline(ctx, 22, 17, PAL.wood0);
+  },
+};
+
+export const DECOR_SIZES = {
+  rug: [32, 10], stool: [14, 15], table: [26, 18], bookshelf: [24, 32],
+  lantern: [11, 16], painting: [24, 18], fernpot: [18, 21], vase: [14, 18],
+  trophy: [32, 18], diploma: [22, 17],
+};
+
+export function decorSprite(id) {
+  const [w, h] = DECOR_SIZES[id] || [16, 16];
+  return sprite(`dec${id}`, w, h, (ctx) => (DECOR_ART[id] || DECOR_ART.stool)(ctx));
+}
+
 // ------------------------------------------------------------------ icons
 export function icon(name) {
   return sprite(`ic${name}`, 9, 9, (ctx) => {
@@ -1033,8 +1313,11 @@ export const ROLE_COLOR = ROLE_TINT;
 export function playerSprite(pose, frame) {
   return sprite(`pl${pose}${frame}`, 16, 18, (ctx) => {
     const walk = pose === 'walk';
+    const chop = pose === 'chop';
     const legPhase = frame % 4;
-    const bob = pose === 'idle' ? (frame % 2) : (legPhase === 1 || legPhase === 3 ? 1 : 0);
+    const bob = pose === 'idle' ? (frame % 2)
+      : chop ? (frame === 2 ? 1 : 0)
+      : (legPhase === 1 || legPhase === 3 ? 1 : 0);
     const y0 = 2 + (pose === 'jump' ? -1 : bob);
 
     rect(ctx, 3, 16, 9, 1, 'rgba(0,0,0,0.25)');
@@ -1069,6 +1352,21 @@ export function playerSprite(pose, frame) {
     // arm
     rect(ctx, 11, y0 + 7, 2, 4, PAL.fur1);
     if (pose === 'jump') rect(ctx, 11, y0 + 5, 2, 3, PAL.fur1);
+    if (chop) {
+      // axe raised, then swung down through the cut
+      const raised = frame === 0 || frame === 1;
+      if (raised) {
+        rect(ctx, 11, y0 + 2, 2, 6, PAL.fur1);
+        line(ctx, 12, y0 + 3, 15, y0 - 3, PAL.wood2);
+        rect(ctx, 13, y0 - 6, 4, 4, PAL.stone3);
+        rect(ctx, 13, y0 - 6, 1, 4, PAL.stone2);
+      } else {
+        rect(ctx, 11, y0 + 6, 3, 3, PAL.fur1);
+        line(ctx, 13, y0 + 7, 16, y0 + 11, PAL.wood2);
+        rect(ctx, 14, y0 + 11, 4, 3, PAL.stone3);
+        rect(ctx, 14, y0 + 11, 1, 3, PAL.stone2);
+      }
+    }
 
     // head
     rect(ctx, 5, y0 + 1, 8, 6, PAL.fur2);
@@ -1234,6 +1532,39 @@ const PROP_ART = {
     line(ctx, 18, 14, 13, 20, PAL.wood1);
     for (let i = 0; i < 3; i++) px(ctx, 4 + i * 6, 13, PAL.paper3);   // feathers
   },
+  // Your own lodge: a dome of sticks and mud with a round door.
+  homelodge: (ctx) => {
+    disc(ctx, 30, 44, 30, PAL.wood0);
+    disc(ctx, 30, 43, 28, PAL.wood1);
+    // packed mud between the sticks
+    for (let i = 0; i < 90; i++) {
+      const a = (i / 90) * Math.PI * 2;
+      const r = 8 + (i % 17);
+      px(ctx, Math.round(30 + Math.cos(a) * r), Math.round(42 + Math.sin(a) * r * 0.8), i % 3 ? PAL.dirt1 : PAL.wood2);
+    }
+    // stick lattice
+    for (let i = 0; i < 20; i++) {
+      const a = Math.PI + (i / 19) * Math.PI;
+      line(ctx, 30 + Math.cos(a) * 29, 44 + Math.sin(a) * 27, 30 + Math.cos(a) * 9, 30, i % 2 ? PAL.wood2 : PAL.wood1);
+    }
+    // doorway
+    disc(ctx, 30, 44, 11, PAL.wood0);
+    disc(ctx, 30, 45, 9, PAL.ink);
+    disc(ctx, 30, 47, 7, PAL.black);
+    rect(ctx, 21, 50, 18, 4, PAL.wood1);
+    rect(ctx, 21, 50, 18, 1, PAL.wood3);
+    // warm light spilling out
+    rect(ctx, 26, 48, 8, 3, '#5a3a1e');
+    px(ctx, 29, 48, PAL.gold);
+    // a little chimney
+    rect(ctx, 44, 12, 7, 10, PAL.stone1);
+    rect(ctx, 43, 10, 9, 3, PAL.stone2);
+    for (let i = 0; i < 5; i++) disc(ctx, 47 + (i % 2) * 2, 6 - i * 3, 2 + (i >> 1), 'rgba(230,230,230,0.35)');
+    // moss and a flower on the roof
+    rect(ctx, 14, 20, 8, 3, PAL.grass2);
+    px(ctx, 16, 19, PAL.grass3); px(ctx, 38, 18, PAL.grass2);
+    px(ctx, 20, 18, PAL.pink);
+  },
   // Odds and ends around the camp.
   sawhorse: (ctx) => {
     rect(ctx, 1, 13, 18, 1, 'rgba(0,0,0,0.2)');
@@ -1263,7 +1594,7 @@ const PROP_ART = {
 
 export function propSprite(id) {
   const sizes = {
-    jobboard: [34, 37], storehouse: [40, 33], bunkhouse: [44, 35],
+    jobboard: [34, 37], storehouse: [40, 33], bunkhouse: [44, 35], homelodge: [61, 56],
     logpile: [28, 20], perch: [24, 41], sawhorse: [20, 15],
     lantern: [11, 17], bucket: [12, 13],
   };
